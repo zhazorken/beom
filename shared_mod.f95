@@ -39,40 +39,42 @@ module shared_mod
 ! i.e., parameters that must be set for a given calculation:
 
   integer,     parameter, public :: &
-    lm         =  201,              & ! Grid size in x (zonal) direction.
-    mm         =  267,              & ! Grid size in y (merid) direction.
-    nlay       =    1,              & ! Number of layers.
-    ndeg       = 54136                ! Grid size after vectorization.
+    lm         =  125,              & ! Grid size in x (zonal) direction.
+    mm         =  501,              & ! Grid size in y (merid) direction.
+    nlay       =    2,              & ! Number of layers.
+    ndeg       =  63252                ! Grid size after vectorization.
   real( rw ),  parameter, public :: &
-    dl         = 15.e3,             & ! Mesh size (meters).
-    cext       =  7.3,              & ! c_{external} = sqrt(g H_{max}) (m/s).
-    f0         = 5.e-5,             & ! Coriolis parameter (rad/s).
-    rhon(nlay) = (/1030./),         & ! Neutral density of layers (kg/m3).
-    topl(nlay) = (/0./),            & ! Position of layer interfaces (non-dim).
-    dt_s       =  500.,             & ! Duration of Simulation           (days).
-    dt_o       = 2.,                & ! Time between model Outputs       (days).
+    dl         = 400,             & ! Mesh size (meters).
+    cext       =  82.8,              & ! c_{external} = sqrt(g H_{max}) (m/s).
+    f0         = 1.409e-4,             & ! Coriolis parameter (rad/s).
+    rhon(nlay) = (/1027.47,1027.75/),         & ! Neutral density of layers (kg/m3).
+    topl(nlay) = (/0.00,0.2143/),            & ! Position of layer interfaces (non-dim).
+    dt_s       =  30.,             & ! Duration of Simulation           (days).
+    dt_o       = .01,                & ! Time between model Outputs       (days).
     dt_r       = 0.,                & ! Time over which winds are Ramped (days).
     dt3d       = 0.,                & ! Time between updates of stress   (days).
     bvis       = 0.,                & ! Background viscosity (m2/s).
-    dvis       = 0.20,              & ! Dyn. Visc. (0.< dvis < 1., non-dim).
-    bdrg       = 0.0e-3,            & ! Bottom Drag (non-dim quadr; m/s linear).
-    hmin       = 0.100000,          & ! Minimum layer thickness allowed   (m).
-    hsbl       =  1.,               & ! Thickn. surf bound lay if outcrop (m).
-    hbbl       =  1.,               & ! Thickn. bott bound lay if outcrop (m).
+    dvis       = 0.9,              & ! Dyn. Visc. (0.< dvis < 1., non-dim).
+    bdrg       = 0.,            & ! Bottom Drag (non-dim quadr; m/s linear).
+    hmin       = 0.3,          & ! Minimum layer thickness allowed   (m).
+    hsbl       =  5.,               & ! Thickn. surf bound lay if outcrop (m).
+    hbbl       =  5.,               & ! Thickn. bott bound lay if outcrop (m).
     g_fb       = 1.,                & ! 1. = Use Generalized Forward Backward.
     uadv       = 1.,                & ! 1. = Use momentum advection.
-    qdrg       = 0.,                & ! 1. = Use quadratic bottom drag.
-    ocrp       = 0.,                & ! 1. = Allow isopycnal outcrops.
+    qdrg       = 1.,                & ! 1. = Use quadratic bottom drag.
+    ocrp       = 1.,                & ! 1. = Allow isopycnal outcrops.
     rsta       = 0.,                & ! 1. = Restart from previous calc.
-    xper       = 1.,                & ! 1. = Domain periodic along x.
-    yper       = 1.,                & ! 1. = Domain periodic along y.
-    diag       = 1.                   ! 1. = Output diag fields.
+    xper       = 0.,                & ! 1. = Domain periodic along x.
+    yper       = 0.,                & ! 1. = Domain periodic along y.
+    diag       = 0.,                & ! 1. = Output diag fields.
+    rgld       = 0.,                & ! 1. = Rigid lid 
+    mcbc       = 1.                   ! 1. = Modified closed boundary conditions with 'eta' nudging.
   complex(rw), parameter, public :: &
-    tauw       = (0.0, - 0.0)         ! Wind stress taux,tauy (Pascals).
+    tauw       = (0.00, 0.0)         ! Wind stress taux,tauy (Pascals).
   character(len = sstr), public ::  &
-    idir       = '/tmp/',           & ! Path to input  files.
-    odir       = '/tmp/',           & ! Path to output files.
-    desc       = 'Test-case: Upwelling in presence of outcrop'
+    idir       = '/home/zhazorken/Desktop/BEOM/runs/h350day30cbc/',           & ! Path to input  files.
+    odir       = '/home/zhazorken/Desktop/BEOM/runs/h350day30cbc/',           & ! Path to output files.
+    desc       = 'Test-case: 3D sill exchange'
 
 !<=============END OF USER-MODIFIABLE SECTION==================================>
 

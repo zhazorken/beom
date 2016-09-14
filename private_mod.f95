@@ -1170,6 +1170,8 @@ subroutine save_metadata()
       write(unit = unum, fmt = *) 'xper           = ',  xper,            ';'
       write(unit = unum, fmt = *) 'yper           = ',  yper,            ';'
       write(unit = unum, fmt = *) 'diag           = ',  diag,            ';'
+      write(unit = unum, fmt = *) 'rgld           = ',  rgld,            ';'
+      write(unit = unum, fmt = *) 'mcbc           = ',  mcbc,            ';'
       write(unit = unum, fmt = *) 'idir           = ', '''',              &
                                                   trim( idir ), '''',    ';'
       write(unit = unum, fmt = *) 'desc           = ', '''',              &
@@ -1756,7 +1758,7 @@ subroutine first_three_timesteps( tstp )
       call update_u( ilay )
     end if
 
-    if ( flag_nudging ) then
+    if ( flag_nudging .and. mcbc < 0.5_rw ) then
 !     Apply vanishing normal derivative at non-periodic open boundaries.
       call no_gradient_obc( ilay )
     end if
@@ -1798,7 +1800,7 @@ subroutine gener_forward_backward( tstp, upst )
       call update_u( ilay )
     end if
 
-    if ( flag_nudging ) then
+    if ( flag_nudging .and. mcbc < 0.5_rw ) then
 !     Apply vanishing normal derivative at non-periodic open boundaries.
       call no_gradient_obc( ilay )
     end if
