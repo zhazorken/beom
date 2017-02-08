@@ -54,8 +54,9 @@ module private_mod
     mont(0 : ndeg      ), & ! Montgomery potential / grav (m).
     d2hx(0 : ndeg      ), & ! Correction term for upstream-biased scheme.
     d2hy(0 : ndeg      ), & ! Correction term for upstream-biased scheme.
-    h_bo(0 : ndeg      )    ! Bottom topography (meters, >0).
-
+    h_bo(0 : ndeg      ), & ! Bottom topography (meters, >0).
+    h_to(0 : ndeg      )    ! Surface topography (meters, >0).
+    
   real( rw ) ::                   &
     ctim,                         & ! Current simulation time (days).
     invf,                         & ! Absolute inverse Coriolis parameter (sec).
@@ -76,7 +77,9 @@ module private_mod
 
   real( r8 )           ::         &
     tres,                         &    ! Time at restart (days).
-    hlay(0 : ndeg, nlay)               ! Layer thickness (meters).
+    hlay(0 : ndeg, nlay),         &      ! Layer thickness (meters).
+    pi_rhs(0: ndeg, nlay),        &     ! Pressure correction
+    pi(0: ndeg, nlay)                   !Pressure field
   integer, allocatable :: segm(:,:)    ! Segments of nudged open boundaries.
   logical              :: flag_nudging ! If active nudging at open boundaries.
 
@@ -113,6 +116,7 @@ subroutine read_input_data()
 ! Get realistic bathymetry if available.
 
   call read_input_file( keyw = 'h_bo', h_2d = h_2d )
+  call read_input_file( keyw = 'h_to', h_2d = h_2d )
 
   call index_grid_points( h_2d ) ! Index velocity and scalar grid points.
 
@@ -267,11 +271,14 @@ subroutine initialize_variables()
   d2hx(:      ) = 0._rw
   d2hy(:      ) = 0._rw
   h_bo(:      ) = 0._rw
+  h_to(:      ) = 0._rw
 
   subc(:,:    ) = 0
   neig(:,:    ) = 0
 
   hlay(:,:    ) = 0._r8
+  pi_rhs(:,:  ) = 0._r8
+  pi(:, :     ) = 0._r8
   ctim          = 0._rw
   tres          = 0._r8
 
@@ -660,12 +667,13 @@ subroutine index_grid_points( h_2d )
   close( unit = unum )
   deallocate( ioi4  )
 
-! Store the bathymetric grid in indexed format.
+! Store the surface and bathymetric grid in indexed format.
 
   do i_c = 0, ndeg
     i           = subc( i_c, 1 )
     j           = subc( i_c, 2 )
     h_bo( i_c ) = h_2d( i,   j )
+    h_to( i_c ) = h_2d( i,   j )
   end do
 
   if ( errc == 0 ) then
@@ -686,7 +694,7 @@ subroutine read_input_file( keyw, h_2d )
 
   inquire( iostat = errc, exist = is_e, file = trim(idir) // keyw // '.bin' )
   if ( .not. is_e ) return
-  if     ( keyw == 'h_bo' .or. keyw == 'fcor' ) then
+  if     ( keyw == 'h_bo' .or. keyw=='h_to' .or. keyw == 'fcor' ) then
     allocate( ior4   ( 0 : lm + 1, 0 : mm + 1 ) )
     inquire( iolength = lrec ) ior4(:,:)
   elseif ( keyw == 'nudg' ) then
@@ -712,7 +720,7 @@ subroutine read_input_file( keyw, h_2d )
   open( unit = unum, status = 'old',    iostat = errc, action = 'read', &
         recl = lrec, access = 'direct', form   = 'unformatted',         &
         file = trim( idir ) // keyw // '.bin' )
-  if     ( keyw == 'h_bo' .or. keyw == 'fcor' .or. keyw == 'bodf' ) then
+  if     ( keyw == 'h_bo' .or. keyw=='h_to' .or. keyw == 'fcor' .or. keyw == 'bodf' ) then
     read( unit = unum, iostat = errc, rec = 1 ) ior4(:,:)
   elseif ( keyw == 'init'                                         ) then
     read( unit = unum, iostat = errc, rec = 1 ) ior4_4d(:,:,:,:)
@@ -726,7 +734,7 @@ subroutine read_input_file( keyw, h_2d )
         // '.bin from directory ' // trim(idir)
     call quit()
   end if
-  if     ( keyw == 'h_bo' ) then
+  if     ( keyw == 'h_bo'.or. keyw== 'h_to' ) then
     h_2d(  :,          :       ) = 0._rw
     h_2d(0 : lm + 1, 0 : mm + 1) = real( ior4, rw )
     deallocate( ior4 )
@@ -1153,6 +1161,7 @@ subroutine save_metadata()
       write(unit = unum, fmt = *) 'bvis           = ',  bvis,            ';'
       write(unit = unum, fmt = *) 'dvis           = ',  dvis,            ';'
       write(unit = unum, fmt = *) 'bdrg           = ',  bdrg,            ';'
+      write(unit = unum, fmt = *) 'tdrg           = ',  tdrg,            ';'
       write(unit = unum, fmt = *) 'tole           = ',  tole,            ';'
       write(unit = unum, fmt = *) 'nsal           = ',  nsal,            ';'
       write(unit = unum, fmt = *) 'hsal           = ',  hsal,            ';'
@@ -1498,6 +1507,361 @@ subroutine update_h()
   end do
 end subroutine update_h
 
+
+subroutine calc_face_thickness(h, h_west, h_south, use_ghost)
+  implicit none
+  real (rw)       :: h_west, h_south, a_ind, b_ind
+  integer, intent(in) :: ilay
+  integer         :: i,j,im1,ip1,jm1,jp1,imin,imax,jmin,jmax,ipnt, c__1, c__7, c__8
+  logical         :: use_ghost
+  character(sstr) :: method_d
+  
+        
+  use_ghost=.true.
+  method_d = METHOD_AL81
+  
+    do ilay = nlay, 1, - 1
+!$OMP PARALLEL DO SCHEDULE(STATIC) PRIVATE(ipnt,c__1,c__3,hold,hfor,rs_3,rhsi)
+    do ipnt = 1, ndeg
+      c__1 = neig( 1, ipnt )
+      c__3 = neig( 3, ipnt )
+
+  
+  ! Min/max i/j indices depend on whether arrays include ghost points
+  !imin = merge(2, 1, use_ghost=.true.)
+  !jmin = merge(2, 1, use_ghost=.true.)
+  !imax = merge(Nx+2*Ng-1, Nx, use_ghost=.true.)
+  !jmax = merge(Ny+2*Ng-1, Ny, use_ghost=.true.)
+  
+!#pragma parallel
+  
+  ! Compute thickness on cell south faces
+  do i = imin, imax
+  
+    im1 = merge(i-1, mod(i+Nx-1, Nx), use_ghost=.true.)
+    ip1 = merge(i+1, mod(i+Nx+1, Nx), use_ghost=.true.)
+    jm1 = merge(j-1, mod(j+Ny-1, Ny), use_ghost=.true.)
+    jp1 = merge(j+1, mod(j+Ny+1, Ny), use_ghost=.true.)
+    
+    select case (method_d)
+        case (METHOD_HK83)
+          ! i end-points are only calculated if ghost points aren't used. If ghost points are used, the near-boundary
+          ! points will be calculated correctly via the interior formula combined with the ghost points.
+          
+           !East, West boundary points at 1, imax
+            h_south(1,j) = merge(0, (1.0/3) * (1.25*(hh(1,j)+hh(1,jm1)) + 0.25*(hh(2,j)+hh(2,jm1))), use_ghost=.true.)
+        
+            h_south(imax,j) = merge(0, (1.0/3) * (1.25*(hh(imax,j)+hh(imax,jm1)) + 0.25*(hh(imax-1,j)+hh(imax,jm1))), use_ghost=.true.)
+        
+        case (METHOD_AL81)
+        
+            h_south(1,j) = 0.5 * (hh(1,j)+hh(1,jm1));
+            h_south(imax,j) = 0.5 * (hh(imax,j)+hh(imax,jm1));
+        
+        case default
+        
+            errm = trim(errm) //' Unknown spatial discretization method\n '//  &
+                   'from module private_mod.f95,'
+        
+    end select
+    
+    select case (method_d)
+      
+        case (METHOD_HK83)
+            
+            a_ind = 1/3
+            b_ind = 1/12
+            
+            
+        case (METHOD_AL81)
+            
+            a_ind = 1/2
+            b_ind = 0
+            
+        case default
+            
+            errm = trim(errm) //' Unknown spatial discretization method\n '//  &
+                   'from module private_mod.f95,'
+
+    end select
+        
+    do j = 1, jmax
+
+          h_south(i,j) = a_ind * ( hh(i,j)+hh(i,jm1))
+                    + b_ind *(hh(ip1,j)+hh(im1,j)+hh(ip1,jm1)+hh(im1,jm1)) ;
+
+    end do
+    
+  end do
+  
+!#pragma parallel
+  
+  ! Compute thickness on cell west faces
+  do i= imin, imax
+  
+    im1 = merge(i-1, mod(i+Nx-1, Nx), use_ghost=.true.)
+    ip1 = merge(i+1, mod(i+Nx+1, Nx), use_ghost=.true.)
+    jm1 = merge(j-1, mod(j+Ny-1, Ny), use_ghost=.true.)
+    jp1 = merge(j+1, mod(j+Ny+1, Ny), use_ghost=.true.)
+    
+    select case (method_d)
+        case (METHOD_HK83)
+          ! j end-points are only calculated if ghost points aren't used. If ghost points are used, the near-boundary
+          ! points will be calculated correctly via the interior formula combined with the ghost points.
+          
+           !North, South boundary points at 1, jmax
+            h_west(i,1) = merge(0, (1.0/3) * (1.25*(hh(i,1)+hh(im1,1)) + 0.25*(hh(i,2)+hh(im1,2))), use_ghost=.true.)
+        
+            h_west(i,jmax) = merge(0, (1.0/3) * (1.25*(hh(i,jmax)+hh(im1,jmax)) + 0.25*(hh(i,jmax-1)+hh(im1,jmax-1))), use_ghost=.true.)
+        
+        case (METHOD_AL81)
+        
+            h_west(i,1) = 0.5 * (hh(i,1)+hh(im1,1));
+            h_west(i,jmax) = 0.5 * (hh(i,jmax)+hh(im1,jmax));
+        
+        case default
+        
+            errm = trim(errm) //' Unknown spatial discretization method\n '//  &
+                   'from module private_mod.f95,'
+        
+    end select
+      
+    
+    select case (method_d)
+    
+        case (METHOD_HK83)
+            
+            a_ind = 1/3
+            b_ind = 1/12
+            
+            
+        case (METHOD_AL81)
+            
+            a_ind = 1/2
+            b_ind = 0
+            
+        case default
+            
+            errm = trim(errm) //' Unknown spatial discretization method\n '//  &
+                   'from module private_mod.f95,'
+    end select
+
+    do j = 2, jmax-1
+   
+            h_west(i,j) = a_ind * (hh(i,j)+hh(im1,j)) + b_ind*(hh(i,jp1)+hh(im1,jp1)+hh(i,jm1)+hh(im1,jm1))
+      
+    end do
+  end do
+ 
+end subroutine calc_face_thickness
+
+
+subroutine surf_pressure()
+  implicit none
+  real(rw)     :: rp, maxdiff, temp, diff, pi_tol
+  integer     :: iters, i, j,k,im1,ip1,jp1,jm1,maxiters, c__5, c__7
+  logical     :: hasConverged, use_LSOR
+  
+  rp=1.305
+  iters=0
+  diff=0
+  hasConverged=.true.
+  use_LSOR=.true.
+  pi_tol=1.e-8_rw
+  maxiters=10000
+  
+!calculate layer thickness on cell faces
+
+ ! // Set right-hand side of Poisson equation
+
+ h_2d(:, :) =0._rw
+
+  do ilay = 1,nlay
+  
+    
+!#pragma parallel
+    
+ !   // Calculate layer thickness on cell faces
+  !  // N.B. Here we use h_west and h_south, which are Nlay x Nx+2*Ng x Ny+2*Ng matrices,
+   ! // as Nlay x Nx x Ny matrices.
+    
+    calc_face_thickness(hh(k),h_west(k),h_south(k),.false.);
+    
+    !// Add contribution due to x-volume fluxes
+    do ipnt=1,ndeg
+        c__5= neigh(5,ipnt)
+
+        
+        !hu = u(ipnt, ilay)*h_west(ipnt, ilay);
+        pi_rhs(ipnt, ilay) =pi_rhs(ipnt,ilay)- h_u(ipnt,ilay) / (dl*dt);
+        pi_rhs(c__5,ilay) =pi_rhs(c__5,j=ilay)+ h_u(ipnt,ilay) / (dl*dt);
+      
+    end do
+    
+!#pragma parallel
+    
+    !// Add contribution due to y-volume fluxes
+    do ipnt=1,ndeg
+
+      
+        c__7=neigh(7,ipnt)
+
+        !hv = vv(ipnt,ilay)*h_south(ipnt,ilay);
+        pi_rhs(ipnt,ilay) =pi_rhs(ipnt,ilay) - h_v(ipnt,ilay) / (dl*dt);
+        pi_rhs(c__7,ilay) =pi_rhs(c__7,ilay)+ h_v(ipnt,ilay) / (dl*dt);
+    end do
+    
+  end do
+  
+
+  
+  !// Perform SOR iteration
+  maxdiff = pi_tol + 1
+  iters = 0
+  do while (maxdiff > pi_tol .and. iters < maxiters)
+  
+    maxdiff = 0
+    
+!#pragma parallel
+    
+    do i = 0,Nx-1
+    
+      im1 = i-1!(i+Nx-1) % Nx;
+      ip1 = i+1!(i+Nx+1) % Nx;
+      
+      if (use_LSOR)
+      
+       ! // Note that this only works because we have Neumann BCs at ys,yn (this is implicit in the definition of Os).
+        !// This code wouldn't work if the domain were periodic in y.
+        do j = 0,Ny-1
+        
+          jm1 = j-1!(j+Ny-1) % Ny;
+          jp1 = j+1! (j+Ny+1) % Ny;
+          
+          A_thomas(j) = - rp*Os(i,j)
+          B_thomas(j) = Osum(i,j)
+          C_thomas(j) = - rp*Os(i,jp1)
+          D_thomas(j) = Osum(i,j)*(1-rp)*pi(i,j) + rp*(Ow(ip1,j)*pi(ip1,j)+Ow(i,j)*pi(im1,j)-pi_rhs(i,j));
+          pi_prev(j) = pi(i,j);
+        end do
+      
+        
+        thomas(A_thomas,B_thomas,C_thomas,D_thomas,*(pi+i),Ny);
+      
+      else
+      
+        
+!#pragma ivdep
+        
+        do j = 0,Ny-1
+        
+          jm1 = j-1!(j+Ny-1) % Ny;
+          jp1 = j+1! (j+Ny+1) % Ny;
+          
+          !// Store current grid value of pi
+          pi_prev(j) = pi(i,j)
+          
+         ! // N.B. This code is periodic in y, but the operator Os is set such that the wall BCs are included
+          pi(i,j) = (1-rp)*pi(i,j)
+                    + rp * _Osum(i,j)
+                        *  ( Os(i,jp1)*pi(i,jp1) + Os(i,j)*pi(i,jm1)+ Ow(ip1,j)*pi(ip1,j) + Ow(i,j)*pi(im1,j) - pi_rhs(i,j) )
+        end do
+      end if
+      
+      !// Calculate the absolute difference between iterations
+      do j = 0,Ny-1
+        diff = abs(pi(i,j)-pi_prev(j));
+        if (diff > maxdiff)
+        
+          maxdiff = diff;
+        end if
+      end do
+    end do
+    
+    iters=iters+1
+  end do
+  
+  !// Correct u-velocity
+  do ilay=1, nlay
+  
+    
+!#pragma parallel
+    
+    do i = 1, ndeg
+        u(ipnt,ilay) =u(ipnt,ilay)- dt*(pi(ipnt,ilay)-pi(c__5,ilay))/dl
+
+    end do
+    
+  end do
+  
+  !// Correct v-velocity
+  do ilay=1, nlay
+    
+!#pragma parallel
+    
+    do i = 1, ndeg
+        v(ipnt,ilay) = v(ipnt,ilay)- dt*(pi(ipnt,ilay)-pi(c__7,ilay))/dl
+    end do
+    
+  end do
+  
+ ! if (debug)
+  !{
+  !  printf("%d %e\n",iters,maxdiff);
+  !  fflush(stdout);
+  !}
+  
+  !// If we haven't converged in the required number
+  !// of iterations, return 0 to indicate this
+  !if (iters == maxiters || maxdiff == 0)
+  !{
+  !  return 0;
+  !}
+  !else
+  !{
+  !  return iters;
+  !}
+!}
+
+end subroutine surf_pressure
+
+
+subroutine thomas(a,b,c,d,x,n)
+  implicit none
+  real   ( r8 ) :: id
+  integer       :: i, a, b, c, d, 
+  logical none
+
+!Performs the thomas algorithm. Here a, b and c are the sub-diagonal, diagonal
+!and super-diagonal in the tridiagonal coefficient matrix, and d is the vector
+!on the right hand side. The solution is filled into x.
+! Warning: will modify c and d!
+
+  real id
+  int i
+  
+ ! // Modify the coefficients
+  c(0) = c(0)/ b(0)!	// Division by zero risk
+  d(0)=d(0) / b(0) !	// Division by zero would imply a singular matrix
+  do i = 1, n-1
+  
+    id = 1 / (b(i) - c(i-1)*a(i))   ! Division by zero risk
+    c(i) = c(i)*id	                    !ast value calculated is redundant
+    d(i) = (d(i) - d(i-1)*a(i)) * id
+  end do
+  
+  !// Now back substitute
+  x(n - 1) = d(n - 1)
+  do i = n-2,-1,0
+  
+    x(i) = d(i) - c(i) * x(i + 1)
+  end do
+
+end subroutine thomas
+
+
+
+
 subroutine integrate_time()
   implicit none
   real   ( r8 ) :: dtd8
@@ -1537,6 +1901,13 @@ subroutine integrate_time()
 
   gene = g_fb ! Activate Generalized Forward-Backward
               !   (if it has been selected in shared_mod.f95).
+              
+  if (gene > 0.5_rw .and. rgld > 0.5_rw) then
+        gene = 0._rw
+        errm = trim(errm) //' Can't use multistep method with rigid lid\n '//  &
+                   'from module private_mod.f95,'
+  end if
+  
   do tstp = 4, nstp
     ctim = real( tres + dtd8 * real(tstp, r8), rw )
 
@@ -1749,15 +2120,18 @@ subroutine first_three_timesteps( tstp )
 !   Backward step: u,v are updated to `n+1' using eta(t=n+1).
 !   Alternate the order in which velocity components are updated.
 !     (Bleck and Smith JGR 1990 vol.95 no.C3, p.3276).
-
-    if ( mod( tstp, 2 ) == 0 ) then ! If n is even, ...
-      call update_u( ilay )
-      call update_v( ilay )
-    else                            ! If n is odd,  ...
-      call update_v( ilay )
-      call update_u( ilay )
+    if (rgld < 0.5_rw) then
+        if ( mod( tstp, 2 ) == 0 ) then ! If n is even, ...
+          call update_u( ilay )
+          call update_v( ilay )
+        else                            ! If n is odd,  ...
+          call update_v( ilay )
+          call update_u( ilay )
+        end if
+    else 
+        call surf_pressure(u, v, hlay, dt, pi, rp)
     end if
-
+    
     if ( flag_nudging .and. mcbc < 0.5_rw ) then
 !     Apply vanishing normal derivative at non-periodic open boundaries.
       call no_gradient_obc( ilay )
@@ -1791,13 +2165,16 @@ subroutine gener_forward_backward( tstp, upst )
 !   Backward step: u(n) becomes u(n+1), using eta(n+1).
 !   Alternate the order in which velocity components are updated.
 !     (Bleck and Smith JGR 1990 vol.95 no.C3, p.3276).
-
-    if ( mod( tstp, 2 ) == 0 ) then ! If n is even, ...
-      call update_u( ilay ) ! 28%
-      call update_v( ilay ) ! 28%
-    else                            ! If n is odd,  ...
-      call update_v( ilay )
-      call update_u( ilay )
+    if (rgld < 0.5_rw) then
+        if ( mod( tstp, 2 ) == 0 ) then ! If n is even, ...
+          call update_u( ilay ) ! 28%
+          call update_v( ilay ) ! 28%
+        else                            ! If n is odd,  ...
+          call update_v( ilay )
+          call update_u( ilay )
+        end if
+    else
+        call surf_pressure(u, v, hlay, dt, pi, rp)
     end if
 
     if ( flag_nudging .and. mcbc < 0.5_rw ) then
