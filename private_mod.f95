@@ -54,8 +54,12 @@ module private_mod
     mont(0 : ndeg      ), & ! Montgomery potential / grav (m).
     d2hx(0 : ndeg      ), & ! Correction term for upstream-biased scheme.
     d2hy(0 : ndeg      ), & ! Correction term for upstream-biased scheme.
-    h_bo(0 : ndeg      )    ! Bottom topography (meters, >0).
-
+    h_bo(0 : ndeg      ), &    ! Bottom topography (meters, >0).
+    h_to(0 : ndeg      ), &   ! Surface topography (meters, >0).
+	Ow(  0 : ndeg      ) = 0._rw,&
+    Os(  0 : ndeg      ) = 0._rw,&
+    Osum_(0: ndeg     ) = 0._rw
+    
   real( rw ) ::                   &
     ctim,                         & ! Current simulation time (days).
     invf,                         & ! Absolute inverse Coriolis parameter (sec).
@@ -76,7 +80,9 @@ module private_mod
 
   real( r8 )           ::         &
     tres,                         &    ! Time at restart (days).
-    hlay(0 : ndeg, nlay)               ! Layer thickness (meters).
+    hlay(0 : ndeg, nlay),      &               ! Layer thickness (meters).
+        pi_rhs(0: ndeg),              &     ! Pressure correction
+    pi_s(0: ndeg)                   !Pressure field
   integer, allocatable :: segm(:,:)    ! Segments of nudged open boundaries.
   logical              :: flag_nudging ! If active nudging at open boundaries.
 
@@ -267,11 +273,17 @@ subroutine initialize_variables()
   d2hx(:      ) = 0._rw
   d2hy(:      ) = 0._rw
   h_bo(:      ) = 0._rw
-
+  h_to(:      ) = 0._rw
+  Ow(  :      ) = 0._rw
+  Os(  :      ) = 0._rw
+  Osum_(:     ) = 0._rw
+  
   subc(:,:    ) = 0
   neig(:,:    ) = 0
 
   hlay(:,:    ) = 0._r8
+  pi_rhs(:    ) = 0._r8
+  pi_s(:        ) = 0._r8
   ctim          = 0._rw
   tres          = 0._r8
 
@@ -291,10 +303,12 @@ subroutine get_equilibrium_thickness_h_0( h_2d, h_0 )
   real     (r8  ), intent(inout) :: h_0(  0 : ndeg, nlay )
   character(sstr)                :: strg
   logical                        :: conv(ndeg), flag
-  integer                        :: ilay, ipnt, lerm, i, j, k, l, iter, imax
+  integer                        :: ilay, ipnt, lerm, i, j, k, l, iter, imax, &
+  									c__1, c__3, c__5, c__7
   real     (r8  )                :: gues(nlay), rho8(nlay), dmax, hbot, habv, &
                                     cons(nlay), func(nlay), hbel, maxv, resu, &
-                                    maug(nlay, nlay + 1), line(nlay + 1), thre
+                                    maug(nlay, nlay + 1), line(nlay + 1), thre, &
+                                    Osum(0:ndeg), h_west(0:ndeg), h_sout(0:ndeg)       
 
   lerm = len_trim( errm )
   errm = trim(     errm ) // ' in subroutine get_equilibrium_thickness_h_0 ' //&
@@ -474,6 +488,69 @@ subroutine get_equilibrium_thickness_h_0( h_2d, h_0 )
   else
     call quit()
   end if
+  
+    
+  if (rgld > 0.5_rw) then
+	   
+! convert top layer equilibrium thickness to starting surface pressure	     
+
+      pi_s(:)= (sum(h_0(:,:),dim=2)-h_bo(:))*grav
+      
+! calculate operators Os, Ow, Osum, Osum_ based on h_0	  	  
+	  Ow(:)=0._rw
+	  Os(:)=0._rw
+	  Osum(:)=0._rw
+	  Osum_(:)=0._rw
+  
+	  do ipnt = 1, ndeg
+		
+		if (1<subc(ipnt,1) .and. subc(ipnt,1)<lm+1 .and. 1<subc(ipnt,2) .and. subc(ipnt,2)<mm+1) then
+			c__5=neig(5,ipnt)
+			c__7=neig(7,ipnt)
+			h_west(ipnt)= 0.5_rw*real( h_bo( ipnt ) + h_bo( c__5 ), rw )
+			h_sout(ipnt)= 0.5_rw*real( h_bo( ipnt ) + h_bo( c__7 ), rw )  
+			Ow(ipnt)=h_west(ipnt)/dl**2
+			Os(ipnt)=h_sout(ipnt)/dl**2
+
+		!if (h_2d(subc(ipnt,1), subc(ipnt,2)) > hdry) then
+		elseif (subc(ipnt,1)==1 .and. 1<subc(ipnt,2) .and. subc(ipnt,2)<mm+1) then					
+			c__7=neig(7,ipnt)
+			h_sout(ipnt)= 0.5_rw*real( h_bo( ipnt ) + h_bo( c__7 ), rw )
+			Ow(ipnt)=0._rw
+			Os(ipnt)=h_sout(ipnt)/dl**2
+		elseif (1<subc(ipnt,1) .and. subc(ipnt,1)<lm+1 .and. subc(ipnt,2)==1) then	
+			c__5=neig(5,ipnt)
+			h_west(ipnt)=0.5_rw*real( h_bo( ipnt ) + h_bo( c__5 ), rw )
+			Ow(ipnt)=h_west(ipnt)/dl**2
+			Os(ipnt)=0._rw
+			
+		end if
+	
+	  end do
+  
+	  do ipnt = 1,ndeg
+		if (subc(ipnt,1)<lm .and. subc(ipnt,2)<mm) then
+			c__1=neig(1,ipnt)
+			c__3=neig(3,ipnt)
+			Osum(ipnt) = Ow(ipnt) + Ow(c__1) + Os(ipnt) + Os(c__3);
+		elseif (subc(ipnt,1)==lm .and. subc(ipnt,2)<mm) then
+			c__3=neig(3,ipnt)
+			Osum(ipnt)= Ow(ipnt)+ Os(ipnt)+Os(c__3)
+		elseif (subc(ipnt,2)==mm .and. subc(ipnt,1)<lm) then
+			c__1=neig(1,ipnt)
+			Osum(ipnt)=Ow(ipnt)+Os(ipnt)+Ow(c__1)
+		else
+			Osum(ipnt)=Ow(ipnt)+Os(ipnt)
+		end if
+	
+	
+		if (subc(ipnt,1)>0 .and. subc(ipnt,1)<lm+1 .and. subc(ipnt,2)>0 .and. subc(ipnt,2)<mm+1) then
+		Osum_(ipnt) = 1 / Osum(ipnt)
+		end if
+	  end do
+
+    end if
+  
 end subroutine get_equilibrium_thickness_h_0
 
 subroutine index_grid_points( h_2d )
@@ -1170,6 +1247,8 @@ subroutine save_metadata()
       write(unit = unum, fmt = *) 'xper           = ',  xper,            ';'
       write(unit = unum, fmt = *) 'yper           = ',  yper,            ';'
       write(unit = unum, fmt = *) 'diag           = ',  diag,            ';'
+      write(unit = unum, fmt = *) 'rgld           = ',  rgld,            ';'
+      write(unit = unum, fmt = *) 'mcbc           = ',  mcbc,            ';'
       write(unit = unum, fmt = *) 'idir           = ', '''',              &
                                                   trim( idir ), '''',    ';'
       write(unit = unum, fmt = *) 'desc           = ', '''',              &
@@ -1255,7 +1334,7 @@ subroutine read_array( path, var, irec )
     if     ( var == 'u___' ) then
       u(1 : ndeg, :) = real( ior4(:,:), kind = rw )
     elseif ( var == 'v___' ) then
-      v(1 : ndeg, :) = real( ior4(:,:), kind = rw )
+      v(1 : ndeg, :) = real( ior4(:,:), kind = rw ) 
     elseif ( var == 'eta_' ) then
 
 !     You need to read the isopycnal elevation `eta' and convert it into a
@@ -1390,6 +1469,8 @@ subroutine update_v( ilay )
     c__8 = neig( 8,    ipnt )
     mask = mk_v(       ipnt )
     hcen = real( hlay( ipnt, ilay ) + hlay( c__7, ilay ), rw ) / (1._rw + mask)
+    
+    
     i__h = 1._rw / ( hcen + 1._rw - mask )
     vold = v( ipnt, ilay )
 
@@ -1440,8 +1521,10 @@ subroutine update_v( ilay )
     dmdy( 1, ipnt, ilay ) = dmdy( 2, ipnt, ilay )
     dmdy( 2, ipnt, ilay ) = dmdy( 3, ipnt, ilay )
     dmdy( 3, ipnt, ilay ) = dmd4
-  end do
+  end do  
+
 !$OMP END PARALLEL DO
+
 end subroutine update_v
 
 subroutine update_h()
@@ -1454,6 +1537,7 @@ subroutine update_h()
   vecl(:) = 0._rw
   vecl(1) = 1._rw
 
+          
   do ilay = nlay, 1, - 1
 !$OMP PARALLEL DO SCHEDULE(STATIC) PRIVATE(ipnt,c__1,c__3,hold,hfor,rs_3,rhsi)
     do ipnt = 1, ndeg
@@ -1494,7 +1578,220 @@ subroutine update_h()
     end do
 !$OMP END PARALLEL DO
   end do
+  
+  do ipnt=1, ndeg
+  	if (sum(real(hlay(ipnt, :),r8)) > h_bo(ipnt)) then
+	errm = trim(errm) //' The water column depth is greater than htop-hbot\n '//  &
+                   'from module private_mod.f95,'
+    elseif (sum(real(hlay(ipnt, :),r8)) < h_bo(ipnt)) then
+    errm = trim(errm) //' The water column depth is less than htop-hbot\n '//  &
+                   'from module private_mod.f95,'        
+    end if
+  end do
+  
 end subroutine update_h
+
+
+subroutine surf_pressure()
+  implicit none
+  real(rw)     :: rp, maxdiff, temp, diff, pi_tol, pi_rhs(1:ndeg), pi_prev(1:ndeg)             
+  integer     :: iters, i, j,k,im1,ip1,jp1,jm1,maxiters, c__1, c__3, c__5, c__7, ilay, ipnt
+  logical     :: hasConverged
+  
+  pi_rhs(: ) = 0._rw
+  rp=1.000
+  iters=0
+  diff=0
+  hasConverged=.true.
+  pi_tol=1.e-8_rw
+  maxiters=10000
+  
+
+!  Set right-hand side of Poisson equation
+
+  do ilay = nlay, 1, -1
+  
+    ! Add contribution due to x-volume fluxes
+    do ipnt=1, ndeg
+    	
+    	!if (h_u(ipnt,ilay) <10) then
+    	if (subc(ipnt,1)>1) then
+        c__5= neig(5,ipnt)
+         
+       
+        pi_rhs(ipnt) = pi_rhs(ipnt)- h_u(ipnt,ilay) / (dl*dt)
+        pi_rhs(c__5) = pi_rhs(c__5)+ h_u(ipnt,ilay) / (dl*dt)
+		
+      	
+      	!else 
+      	
+      	!pi_rhs(ipnt) = pi_rhs(ipnt)- h_u(ipnt,ilay) / (dl*dt)
+      	
+      	!end if
+      	
+      	end if
+    end do
+    
+
+    ! Add contribution due to y-volume fluxes
+    do ipnt=1, ndeg
+		
+		!if (h_v(ipnt,ilay) <10) then
+		 
+      	if (subc(ipnt,2)>1) then
+        c__7=neig(7,ipnt)
+
+        ! already calculated h_v = v(ipnt,ilay)*h_south(ipnt,ilay)
+        pi_rhs(ipnt) =pi_rhs(ipnt) - h_v(ipnt,ilay) / (dl*dt)
+        pi_rhs(c__7) =pi_rhs(c__7)+ h_v(ipnt,ilay) / (dl*dt)
+        
+
+        !else
+        
+        !pi_rhs(ipnt) =pi_rhs(ipnt) - h_v(ipnt,ilay) / (dl*dt)
+        
+        !end if
+        
+        end if
+    end do
+    
+  end do
+  
+  print*, 'pi_rhs row 1', pi_rhs(1:6)
+  print*, 'pi_rhs row 2', pi_rhs(7:12)
+  print*, 'pi_rhs row 3', pi_rhs(13:18)
+  print*, 'pi_rhs row 4', pi_rhs(19:24)
+
+  
+  !  Perform SOR iteration
+  maxdiff = pi_tol + 1
+  iters = 0
+  do while (maxdiff > pi_tol .and. iters < maxiters)
+  	
+  	!print *, 'The maxdiff is', maxdiff
+    !print *, 'The iteration is', iters
+    
+    maxdiff = 0
+    
+	! PSOR default
+	do ipnt=1, ndeg
+	
+	  ! Store current grid value of pi_s
+	  pi_prev(ipnt) = pi_s(ipnt)
+	  pi_s(ipnt) = (1-rp)*pi_s(ipnt) - rp * Osum_(ipnt) * pi_rhs(ipnt)
+	  
+      	
+	  if (subc(ipnt,1)<lm) then
+	  c__1= neig(1, ipnt)
+	  pi_s(ipnt) = pi_s(ipnt)+ rp * Osum_(ipnt) * Ow(c__1)*pi_s(c__1)	  
+	  end if
+	  if (subc(ipnt,2)<mm) then
+	  c__3= neig(3, ipnt)
+	  pi_s(ipnt) = pi_s(ipnt)+ rp * Osum_(ipnt) * Ow(c__3)*pi_s(c__3)
+	  end if
+	  if (subc(ipnt,1)>1) then
+	  c__5= neig(5, ipnt)
+	  pi_s(ipnt) = pi_s(ipnt)+ rp * Osum_(ipnt) * Ow(c__5)*pi_s(c__5)
+	  end if
+	  if (subc(ipnt,2)>1) then
+	  c__7= neig(7, ipnt)
+	  pi_s(ipnt) = pi_s(ipnt)+ rp * Osum_(ipnt) * Ow(c__7)*pi_s(c__7)
+	  end if
+	  
+	  !  operator Os, Ow are defined to be 0 at walls and H/dl^2 elsewhere
+	 ! pi_s(ipnt) = (1-rp)*pi_s(ipnt)+ rp * Osum_(ipnt) &
+	!				* ( Os(c__3)*pi_s(c__3) + Os(ipnt)*pi_s(c__7)+ Ow(c__1)*pi_s(c__1) &
+	!				+ Ow(ipnt)*pi_s(c__5) - pi_rhs(ipnt) )			
+	end do
+      
+      !  Calculate the absolute difference between iterations (pointwise convergence)
+      do ipnt=1, ndeg
+        diff = abs(pi_s(ipnt)-pi_prev(ipnt))
+        if (diff > maxdiff) then
+          maxdiff = diff
+        end if
+      end do
+
+    iters=iters+1
+  end do
+
+  !print*, 'aaaa1', u(1:6, 1)	
+  !print*, 'bbbb2', u(7:12, 1)
+  !print*, 'cccc3', u(13:18, 1)
+  ! print*, 'aaaa4', u(19:24, 1)	
+  !print*, 'bbbb5', u(25:30, 1)
+  !print*, 'cccc6', u(31:36, 1)
+  ! print*, 'bbbb7', u(37:42, 1)
+  !print*, 'cccc8', u(43:48, 1)
+  !  print*, 'aaaa9', pi_s(1:6)	
+  !print*, 'bbbbb10', pi_s(7:12)
+  !print*, 'ccccc11', pi_s(13:18)
+  ! print*, 'aaaaa12', pi_s(19:24)	
+  !print*, 'bbbbb13', pi_s(25:30)
+  !print*, 'ccccc14', pi_s(31:36)
+  !  print*, 'bbbbb15', pi_s(37:42)
+  !print*, 'ccccc16', pi_s(43:48)
+  
+  !  Correct u-velocity
+  do ilay=1, nlay
+  
+    
+    do ipnt = 1, ndeg
+        
+        if (subc(ipnt,1)>1 .and. subc(ipnt,1)<lm+1) then
+        c__5= neig( 5, ipnt)
+        	
+        	
+        	!if (pi_s(ipnt)==pi_s(ipnt) ) then 
+        	
+        	u(ipnt,ilay) =u(ipnt,ilay) - dt/dl*pi_s(ipnt)
+		    	
+		    	u(ipnt,ilay) =real(u(ipnt,ilay) +dt/dl*pi_s(c__5), r8)
+		    	
+
+		    	
+		    	
+		    	!end if
+		    !end if
+		!else
+		!	if (pi_s(ipnt)==pi_s(ipnt)) then
+			
+		!	u(ipnt,ilay) =real (u(ipnt,ilay) - dt/dl*pi_s(ipnt), r8)
+		!	end if
+		end if
+    end do
+    
+  end do
+  
+  
+  !   Correct v-velocity
+  do ilay=1, nlay
+    
+    do ipnt = 1, ndeg
+    	
+        
+    	if (subc(ipnt,2)>1 .and. subc(ipnt,2)<mm+1) then
+        c__7 = neig(7, ipnt)
+        	!if (pi_s(ipnt)==pi_s(ipnt)  ) then
+        	
+        	v(ipnt,ilay) = v(ipnt,ilay)- dt/dl*pi_s(ipnt)
+        		
+        		v(ipnt, ilay) = real(v(ipnt, ilay) + dt/dl* pi_s(c__7), r8)
+        		
+        	!end if
+        !else
+        !	if ( pi_s(ipnt)==pi_s(ipnt) ) then
+        !	
+        !	v(ipnt,ilay) = real(v(ipnt,ilay) - dt/dl*pi_s(ipnt), r8)
+        !	end if
+        end if
+    end do
+    
+  end do
+  
+ ! insert statement to state if haven't converged within max iterations?
+          
+end subroutine surf_pressure
 
 subroutine integrate_time()
   implicit none
@@ -1535,6 +1832,13 @@ subroutine integrate_time()
 
   gene = g_fb ! Activate Generalized Forward-Backward
               !   (if it has been selected in shared_mod.f95).
+              
+  if (gene > 0.5_rw .and. rgld > 0.5_rw) then
+        gene = 0._rw
+        errm = trim(errm) //' Cant use multistep method with rigid lid\n '//  &
+                   'from module private_mod.f95,'
+  end if
+              
   do tstp = 4, nstp
     ctim = real( tres + dtd8 * real(tstp, r8), rw )
 
@@ -1747,20 +2051,24 @@ subroutine first_three_timesteps( tstp )
 !   Backward step: u,v are updated to `n+1' using eta(t=n+1).
 !   Alternate the order in which velocity components are updated.
 !     (Bleck and Smith JGR 1990 vol.95 no.C3, p.3276).
-
-    if ( mod( tstp, 2 ) == 0 ) then ! If n is even, ...
-      call update_u( ilay )
-      call update_v( ilay )
-    else                            ! If n is odd,  ...
-      call update_v( ilay )
-      call update_u( ilay )
-    end if
-
-    if ( flag_nudging ) then
+	if ( mod( tstp, 2 ) == 0 ) then ! If n is even, ...
+		call update_u( ilay )
+		call update_v( ilay )
+	else                            ! If n is odd,  ...
+		call update_v( ilay )
+		call update_u( ilay )
+	end if
+    
+    if ( flag_nudging .and. mcbc < 0.5_rw ) then
 !     Apply vanishing normal derivative at non-periodic open boundaries.
       call no_gradient_obc( ilay )
     end if
   end do
+  
+  if (rgld > 0.5_rw) then
+    call surf_pressure()
+  end if
+  
 end subroutine first_three_timesteps
 
 subroutine gener_forward_backward( tstp, upst )
@@ -1790,20 +2098,27 @@ subroutine gener_forward_backward( tstp, upst )
 !   Alternate the order in which velocity components are updated.
 !     (Bleck and Smith JGR 1990 vol.95 no.C3, p.3276).
 
-    if ( mod( tstp, 2 ) == 0 ) then ! If n is even, ...
-      call update_u( ilay ) ! 28%
-      call update_v( ilay ) ! 28%
-    else                            ! If n is odd,  ...
-      call update_v( ilay )
-      call update_u( ilay )
-    end if
+	if ( mod( tstp, 2 ) == 0 ) then ! If n is even, ...
+		call update_u( ilay ) ! 28%
+		call update_v( ilay ) ! 28%
+	else                            ! If n is odd,  ...
+		call update_v( ilay )
+		call update_u( ilay )
+	end if
 
-    if ( flag_nudging ) then
+
+    if ( flag_nudging .and. mcbc < 0.5_rw ) then
 !     Apply vanishing normal derivative at non-periodic open boundaries.
       call no_gradient_obc( ilay )
     end if
 
   end do ! loop on layers
+  
+  if (rgld > 0.5_rw) then
+    call surf_pressure()
+
+  end if
+  
 end subroutine gener_forward_backward
 
 subroutine update_mont_rvor_pvor_dive_kine( ilay )
@@ -2227,7 +2542,7 @@ subroutine write_array( var, irec, is_init )
     read( unum, rec = 1 ) h_0(:,:)
     close( unit = unum )
 
-    do ilay = nlay, 1, - 1
+    do ilay = nlay, 2, - 1
       do ipnt = 1, ndeg
         if ( ilay == nlay ) then
           ior4( ipnt, ilay )                           &
@@ -2241,6 +2556,22 @@ subroutine write_array( var, irec, is_init )
         end if
       end do
     end do
+    
+    ilay = 1
+    if (rgld < 0.5_rw) then
+       do ipnt=1, ndeg
+       		ior4( ipnt, ilay )                           &
+            = real(       hlay( ipnt, ilay     )       &
+                  - real( h_0(  ipnt, ilay     ), r8 ) &
+                  + real( ior4( ipnt, ilay + 1 ), r8 ), r4 )
+       end do
+    else
+       do ipnt=1, ndeg
+       ior4(ipnt, ilay) = real(pi_s(ipnt) ) !+ real (ior4(ipnt, ilay+1), r8), r4)
+       end do
+    end if 
+    
+    
     deallocate( h_0 )
 
   elseif ( var == 'u___' ) then ! m s**(-1).
