@@ -1440,11 +1440,13 @@ subroutine update_u( ilay )
 !   3rd-order upstream-biased advection of layer thickness.
 !   See Shchepetkin & McWilliams, 2005, p.394.
 
-    h_u( ipnt, ilay ) = 0.5_rw * ( uold + abs( uold ) )      & ! max( u, 0. )
-                      * ( hcen - 0.16667_rw * d2hx( c__5 ) ) &
-                      + 0.5_rw * ( uold - abs( uold ) )      & ! min( u, 0. )
-                      * ( hcen - 0.16667_rw * d2hx( ipnt ) )
-
+	if (rgld < 0.5_rw) then
+		h_u( ipnt, ilay ) = 0.5_rw * ( uold + abs( uold ) )      & ! max( u, 0. )
+						  * ( hcen - 0.16667_rw * d2hx( c__5 ) ) &
+						  + 0.5_rw * ( uold - abs( uold ) )      & ! min( u, 0. )
+						  * ( hcen - 0.16667_rw * d2hx( ipnt ) )
+	end if
+	
     dmdx( 1, ipnt, ilay ) = dmdx( 2, ipnt, ilay )
     dmdx( 2, ipnt, ilay ) = dmdx( 3, ipnt, ilay )
     dmdx( 3, ipnt, ilay ) = dmd4
@@ -1513,11 +1515,13 @@ subroutine update_v( ilay )
 !   3rd-order upstream-biased advection of layer thickness.
 !   See Shchepetkin & McWilliams, 2005, p.394.
 
-    h_v( ipnt, ilay ) = 0.5_rw * ( vold + abs( vold ) )      & ! max( v, 0. )
-                      * ( hcen - 0.16667_rw * d2hy( c__7 ) ) &
-                      + 0.5_rw * ( vold - abs( vold ) )      & ! min( v, 0. )
-                      * ( hcen - 0.16667_rw * d2hy( ipnt ) )
-
+	if (rgld < 0.5_rw) then
+		h_v( ipnt, ilay ) = 0.5_rw * ( vold + abs( vold ) )      & ! max( v, 0. )
+						  * ( hcen - 0.16667_rw * d2hy( c__7 ) ) &
+						  + 0.5_rw * ( vold - abs( vold ) )      & ! min( v, 0. )
+						  * ( hcen - 0.16667_rw * d2hy( ipnt ) )
+	end if
+	
     dmdy( 1, ipnt, ilay ) = dmdy( 2, ipnt, ilay )
     dmdy( 2, ipnt, ilay ) = dmdy( 3, ipnt, ilay )
     dmdy( 3, ipnt, ilay ) = dmd4
@@ -1579,15 +1583,20 @@ subroutine update_h()
 !$OMP END PARALLEL DO
   end do
   
-  do ipnt=1, ndeg
-  	if (sum(real(hlay(ipnt, :),r8)) > h_bo(ipnt)) then
-	errm = trim(errm) //' The water column depth is greater than htop-hbot\n '//  &
-                   'from module private_mod.f95,'
-    elseif (sum(real(hlay(ipnt, :),r8)) < h_bo(ipnt)) then
-    errm = trim(errm) //' The water column depth is less than htop-hbot\n '//  &
-                   'from module private_mod.f95,'        
-    end if
-  end do
+  if (rgld>0.5_rw) then
+	  do ipnt=1, ndeg
+
+		!tiny correction to top layer to ensure sum of layers is htop-hbot to machine precision                                
+		hlay(ipnt, 1) = hlay(ipnt,1) - real(sum(hlay(ipnt,:)) - real(h_bo(ipnt),r8))
+		if (sum(real(hlay(ipnt, :),r8)) > h_bo(ipnt)) then
+		errm = trim(errm) //' The water column depth is greater than htop-hbot\n '//  &
+					   'from module private_mod.f95,'
+		elseif (sum(real(hlay(ipnt, :),r8)) < h_bo(ipnt)) then
+		errm = trim(errm) //' The water column depth is less than htop-hbot\n '//  &
+					   'from module private_mod.f95,'        
+		end if
+	  end do
+  end if
   
 end subroutine update_h
 
@@ -1657,10 +1666,10 @@ subroutine surf_pressure()
     
   end do
   
-  print*, 'pi_rhs row 1', pi_rhs(1:6)
-  print*, 'pi_rhs row 2', pi_rhs(7:12)
-  print*, 'pi_rhs row 3', pi_rhs(13:18)
-  print*, 'pi_rhs row 4', pi_rhs(19:24)
+  !print*, 'pi_rhs row 1', pi_rhs(1:6)
+  !print*, 'pi_rhs row 2', pi_rhs(7:12)
+  !print*, 'pi_rhs row 3', pi_rhs(13:18)
+  !print*, 'pi_rhs row 4', pi_rhs(19:24)
 
   
   !  Perform SOR iteration
@@ -2075,12 +2084,36 @@ subroutine gener_forward_backward( tstp, upst )
   implicit none
   logical, intent( in ) :: upst
   integer, intent( in ) :: tstp
-  integer               :: ilay
-
+  integer               :: ilay, ipnt,  c__5, c__7
+  real ( rw )         :: mask, hcen
 ! `Generalized' Forward-Backward
 ! Shchepetkin & McWilliams (2005, Ocean Modelling, Eq. 2.49)
 ! The `standard' scheme is used if g_fb=0. inside file shared_mod.f95.
+	
+	
+	!This is the proper place to update hu, hv for a rigid lid
+  if (rgld > 0.5_rw) then
+	do ilay = 1, nlay
+		do ipnt = 1, ndeg
+		c__5 = neig( 5, ipnt )
+		c__7 = neig( 7, ipnt )
+		mask = mk_u(       ipnt )
+    	hcen = real( hlay( c__5, ilay ) + hlay( ipnt, ilay ), rw ) / (1._rw + mask)
+		h_u( ipnt, ilay ) = 0.5_rw * ( u(ipnt,ilay) + abs( u(ipnt,ilay) ) )      & ! max( u, 0. )
+						  * ( hcen - 0.16667_rw * d2hx( c__5 ) ) &
+						  + 0.5_rw * ( u(ipnt,ilay) - abs( u(ipnt,ilay) ) )      & ! min( u, 0. )
+						  * ( hcen - 0.16667_rw * d2hx( ipnt ) )
+		mask = mk_v(       ipnt )
+    	hcen = real( hlay( c__7, ilay ) + hlay( ipnt, ilay ), rw ) / (1._rw + mask)			  
+		h_v( ipnt, ilay ) = 0.5_rw * ( v(ipnt,ilay) + abs( v(ipnt,ilay) ) )      & ! max( v, 0. )
+						  * ( hcen - 0.16667_rw * d2hy( c__7 ) ) &
+						  + 0.5_rw * ( v(ipnt,ilay) - abs( v(ipnt,ilay) ) )      & ! min( v, 0. )
+						  * ( hcen - 0.16667_rw * d2hy( ipnt ) )
 
+		end do
+	end do
+  end if
+  
   call update_h() ! 14%
 
   do ilay = 1, nlay
@@ -2167,7 +2200,9 @@ subroutine update_mont_rvor_pvor_dive_kine( ilay )
     end do
 
 !   3- Barotropic contribution.
-
+	
+	if (rgld<0.5_rw) then
+	
     hcol = 0._r8
 
     do i = 1, nlay
@@ -2175,7 +2210,8 @@ subroutine update_mont_rvor_pvor_dive_kine( ilay )
     end do
 
     mpot = hcol - real( h_bo( ipnt ), r8 ) + mpot
-
+	
+	end if
 !   4- Kinetic energy (Montgomery potential becomes Bernoulli potential).
 !      kine = 0.5 * ave_x(u**2) + 0.5 * ave_y(v**2), defined at cell-center.
 !        e.g., Arakawa & Lamb MWR 1981, Sadourny MWR 1975.
