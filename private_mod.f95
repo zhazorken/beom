@@ -1623,7 +1623,6 @@ subroutine surf_pressure()
     ! Add contribution due to x-volume fluxes
     do ipnt=1, ndeg
     	
-    	!if (h_u(ipnt,ilay) <10) then
     	if (subc(ipnt,1)>1) then
         c__5= neig(5,ipnt)
          
@@ -1631,13 +1630,6 @@ subroutine surf_pressure()
         pi_rhs(ipnt) = pi_rhs(ipnt)- h_u(ipnt,ilay) / (dl*dt)
         pi_rhs(c__5) = pi_rhs(c__5)+ h_u(ipnt,ilay) / (dl*dt)
 		
-      	
-      	!else 
-      	
-      	!pi_rhs(ipnt) = pi_rhs(ipnt)- h_u(ipnt,ilay) / (dl*dt)
-      	
-      	!end if
-      	
       	end if
     end do
     
@@ -1645,8 +1637,7 @@ subroutine surf_pressure()
     ! Add contribution due to y-volume fluxes
     do ipnt=1, ndeg
 		
-		!if (h_v(ipnt,ilay) <10) then
-		 
+
       	if (subc(ipnt,2)>1) then
         c__7=neig(7,ipnt)
 
@@ -1654,22 +1645,11 @@ subroutine surf_pressure()
         pi_rhs(ipnt) =pi_rhs(ipnt) - h_v(ipnt,ilay) / (dl*dt)
         pi_rhs(c__7) =pi_rhs(c__7)+ h_v(ipnt,ilay) / (dl*dt)
         
-
-        !else
-        
-        !pi_rhs(ipnt) =pi_rhs(ipnt) - h_v(ipnt,ilay) / (dl*dt)
-        
-        !end if
         
         end if
     end do
     
   end do
-  
-  !print*, 'pi_rhs row 1', pi_rhs(1:6)
-  !print*, 'pi_rhs row 2', pi_rhs(7:12)
-  !print*, 'pi_rhs row 3', pi_rhs(13:18)
-  !print*, 'pi_rhs row 4', pi_rhs(19:24)
 
   
   !  Perform SOR iteration
@@ -1708,9 +1688,7 @@ subroutine surf_pressure()
 	  end if
 	  
 	  !  operator Os, Ow are defined to be 0 at walls and H/dl^2 elsewhere
-	 ! pi_s(ipnt) = (1-rp)*pi_s(ipnt)+ rp * Osum_(ipnt) &
-	!				* ( Os(c__3)*pi_s(c__3) + Os(ipnt)*pi_s(c__7)+ Ow(c__1)*pi_s(c__1) &
-	!				+ Ow(ipnt)*pi_s(c__5) - pi_rhs(ipnt) )			
+	
 	end do
       
       !  Calculate the absolute difference between iterations (pointwise convergence)
@@ -1724,22 +1702,6 @@ subroutine surf_pressure()
     iters=iters+1
   end do
 
-  !print*, 'aaaa1', u(1:6, 1)	
-  !print*, 'bbbb2', u(7:12, 1)
-  !print*, 'cccc3', u(13:18, 1)
-  ! print*, 'aaaa4', u(19:24, 1)	
-  !print*, 'bbbb5', u(25:30, 1)
-  !print*, 'cccc6', u(31:36, 1)
-  ! print*, 'bbbb7', u(37:42, 1)
-  !print*, 'cccc8', u(43:48, 1)
-  !  print*, 'aaaa9', pi_s(1:6)	
-  !print*, 'bbbbb10', pi_s(7:12)
-  !print*, 'ccccc11', pi_s(13:18)
-  ! print*, 'aaaaa12', pi_s(19:24)	
-  !print*, 'bbbbb13', pi_s(25:30)
-  !print*, 'ccccc14', pi_s(31:36)
-  !  print*, 'bbbbb15', pi_s(37:42)
-  !print*, 'ccccc16', pi_s(43:48)
   
   !  Correct u-velocity
   do ilay=1, nlay
@@ -1751,22 +1713,10 @@ subroutine surf_pressure()
         c__5= neig( 5, ipnt)
         	
         	
-        	!if (pi_s(ipnt)==pi_s(ipnt) ) then 
-        	
         	u(ipnt,ilay) =u(ipnt,ilay) - dt/dl*pi_s(ipnt)
 		    	
 		    	u(ipnt,ilay) =real(u(ipnt,ilay) +dt/dl*pi_s(c__5), r8)
-		    	
 
-		    	
-		    	
-		    	!end if
-		    !end if
-		!else
-		!	if (pi_s(ipnt)==pi_s(ipnt)) then
-			
-		!	u(ipnt,ilay) =real (u(ipnt,ilay) - dt/dl*pi_s(ipnt), r8)
-		!	end if
 		end if
     end do
     
@@ -1781,18 +1731,11 @@ subroutine surf_pressure()
         
     	if (subc(ipnt,2)>1 .and. subc(ipnt,2)<mm+1) then
         c__7 = neig(7, ipnt)
-        	!if (pi_s(ipnt)==pi_s(ipnt)  ) then
         	
         	v(ipnt,ilay) = v(ipnt,ilay)- dt/dl*pi_s(ipnt)
         		
         		v(ipnt, ilay) = real(v(ipnt, ilay) + dt/dl* pi_s(c__7), r8)
         		
-        	!end if
-        !else
-        !	if ( pi_s(ipnt)==pi_s(ipnt) ) then
-        !	
-        !	v(ipnt,ilay) = real(v(ipnt,ilay) - dt/dl*pi_s(ipnt), r8)
-        !	end if
         end if
     end do
     
@@ -2075,6 +2018,18 @@ subroutine first_three_timesteps( tstp )
   end do
   
   if (rgld > 0.5_rw) then
+  	  do ilay = 1, nlay
+    do ipnt = 1, ndeg
+      c__5 = neig( 5, ipnt )
+      c__7 = neig( 7, ipnt )
+      h_u( ipnt, ilay ) = u( ipnt, ilay ) * real( hlay( ipnt, ilay )       &
+                                                + hlay( c__5, ilay ), rw ) &
+                        / ( 1._rw + mk_u( ipnt ) )
+      h_v( ipnt, ilay ) = v( ipnt, ilay ) * real( hlay( ipnt, ilay )       &
+                                                + hlay( c__7, ilay ), rw ) &
+                        / ( 1._rw + mk_v( ipnt ) )
+    end do
+  end do
     call surf_pressure()
   end if
   
@@ -2148,6 +2103,26 @@ subroutine gener_forward_backward( tstp, upst )
   end do ! loop on layers
   
   if (rgld > 0.5_rw) then
+  	do ilay = 1, nlay
+		do ipnt = 1, ndeg
+		c__5 = neig( 5, ipnt )
+		c__7 = neig( 7, ipnt )
+		mask = mk_u(       ipnt )
+    	hcen = real( hlay( c__5, ilay ) + hlay( ipnt, ilay ), rw ) / (1._rw + mask)
+		h_u( ipnt, ilay ) = 0.5_rw * ( u(ipnt,ilay) + abs( u(ipnt,ilay) ) )      & ! max( u, 0. )
+						  * ( hcen - 0.16667_rw * d2hx( c__5 ) ) &
+						  + 0.5_rw * ( u(ipnt,ilay) - abs( u(ipnt,ilay) ) )      & ! min( u, 0. )
+						  * ( hcen - 0.16667_rw * d2hx( ipnt ) )
+		mask = mk_v(       ipnt )
+    	hcen = real( hlay( c__7, ilay ) + hlay( ipnt, ilay ), rw ) / (1._rw + mask)			  
+		h_v( ipnt, ilay ) = 0.5_rw * ( v(ipnt,ilay) + abs( v(ipnt,ilay) ) )      & ! max( v, 0. )
+						  * ( hcen - 0.16667_rw * d2hy( c__7 ) ) &
+						  + 0.5_rw * ( v(ipnt,ilay) - abs( v(ipnt,ilay) ) )      & ! min( v, 0. )
+						  * ( hcen - 0.16667_rw * d2hy( ipnt ) )
+
+		end do
+	end do
+	
     call surf_pressure()
 
   end if
