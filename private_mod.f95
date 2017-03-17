@@ -1433,8 +1433,12 @@ subroutine update_u( ilay )
            + epsi * dmdx( 1, ipnt, ilay )                             &
            ) * gene
     uold = uold + rhsi * mask * dt
-    uold = ufor *          nudg( ipnt, ix_u )                         &
-         + uold * (1._rw - nudg( ipnt, ix_u ))
+    
+    !if (ilay > 1.5_rw) then
+    !    uold = ufor *          nudg( ipnt, ix_u )                         &
+    !       + uold * (1._rw - nudg( ipnt, ix_u ))
+    !end if
+   
     u( ipnt, ilay ) = uold
 
 !   3rd-order upstream-biased advection of layer thickness.
@@ -1508,8 +1512,12 @@ subroutine update_v( ilay )
            + epsi * dmdy( 1, ipnt, ilay )                             &
            ) * gene
     vold = vold + rhsi * mask * dt
-    vold = vfor *          nudg( ipnt, ix_v )                         &
-         + vold * (1._rw - nudg( ipnt, ix_v ))
+ 
+   !if (ilay > 1.5_rw) then
+   !    vold = vfor *          nudg( ipnt, ix_v )                         &
+   !         + vold * (1._rw - nudg( ipnt, ix_v ))
+   ! end if
+
     v( ipnt, ilay ) = vold
 
 !   3rd-order upstream-biased advection of layer thickness.
@@ -1573,10 +1581,16 @@ subroutine update_h()
       hfor = fnud( ipnt, ilay, ix_n )                                &
            + ramp * tide( 1, 1, ipnt, ix_n ) * vecl( ilay )          &
            * cos(   tide( 2, 1, ipnt, ix_n ) - w_ti(1) * ctim )
-
+    
+    if (ilay > 1.5_rw) then
+    
       hlay( ipnt, ilay ) = real( hfor  * nudg( ipnt, ix_n ), r8 )    &
                          + real( 1._rw - nudg( ipnt, ix_n ), r8 ) * hold
-
+    else
+    	hlay(ipnt, ilay) = hold
+    
+    end if
+    
       rs_h( 1, ipnt, ilay ) = rs_h( 2, ipnt, ilay )
       rs_h( 2, ipnt, ilay ) = rs_3
     end do
