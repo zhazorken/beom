@@ -2349,6 +2349,12 @@ subroutine update_viscosity( ilay )
                        + bvis 
 !   Biharmonic viscosity.  nu = svis / dl * hlay
 !   See Griffies and Hallberg, 2000, Monthly Weather Review.
+  v_ll( ipnt, ilay ) = v_ll( ipnt, ilay ) + 1/dl* svis / &
+        max( hlay( ipnt, ilay),1._rw) 
+   !  if (v_ll(ipnt,ilay) > 30 .or. v_ll(ipnt,ilay)<5) then
+   ! print *, '' , v_ll(ipnt, ilay), subc(ipnt,1), subc(ipnt,2), ilay, hlay(ipnt,ilay)
+   ! read(*,*) v_ll(ipnt,ilay)
+   ! end if
 
 !if (subc(ipnt,1)<lm .and. subc(ipnt,1)>2 .and. subc(ipnt,2)<mm .and. subc(ipnt,2)>2)  then 
 !            v_ll( ipnt, ilay ) = v_ll( ipnt, ilay ) +  svis / &
