@@ -56,7 +56,7 @@ module private_mod
     d2hy(0 : ndeg      ), & ! Correction term for upstream-biased scheme.
     h_bo(0 : ndeg      ), &    ! Bottom topography (meters, >0).
     h_to(0 : ndeg      ), &   ! Surface topography (meters, >0).
-	Ow(  0 : ndeg      ) = 0._rw,&
+    Ow(  0 : ndeg      ) = 0._rw,&
     Os(  0 : ndeg      ) = 0._rw,&
     Osum_(0: ndeg     ) = 0._rw
     
@@ -304,7 +304,7 @@ subroutine get_equilibrium_thickness_h_0( h_2d, h_0 )
   character(sstr)                :: strg
   logical                        :: conv(ndeg), flag
   integer                        :: ilay, ipnt, lerm, i, j, k, l, iter, imax, &
-  									c__1, c__3, c__5, c__7
+                                     c__1, c__3, c__5, c__7
   real     (r8  )                :: gues(nlay), rho8(nlay), dmax, hbot, habv, &
                                     cons(nlay), func(nlay), hbel, maxv, resu, &
                                     maug(nlay, nlay + 1), line(nlay + 1), thre, &
@@ -495,7 +495,7 @@ subroutine get_equilibrium_thickness_h_0( h_2d, h_0 )
 ! convert top layer equilibrium thickness to starting surface pressure	     
 
       pi_s(:)= (sum(h_0(:,:),dim=2)-h_bo(:))*grav
-      
+      !print *, maxval(pi_s)
 ! calculate operators Os, Ow, Osum, Osum_ based on h_0	  	  
 	  Ow(:)=0._rw
 	  Os(:)=0._rw
@@ -505,12 +505,12 @@ subroutine get_equilibrium_thickness_h_0( h_2d, h_0 )
 	  do ipnt = 1, ndeg
 		
 		if (1<subc(ipnt,1) .and. subc(ipnt,1)<lm+1 .and. 1<subc(ipnt,2) .and. subc(ipnt,2)<mm+1) then
-			c__5=neig(5,ipnt)
-			c__7=neig(7,ipnt)
-			h_west(ipnt)= 0.5_rw*real( h_bo( ipnt ) + h_bo( c__5 ), rw )
-			h_sout(ipnt)= 0.5_rw*real( h_bo( ipnt ) + h_bo( c__7 ), rw )  
-			Ow(ipnt)=h_west(ipnt)/dl**2
-			Os(ipnt)=h_sout(ipnt)/dl**2
+                        c__5=neig(5,ipnt)
+                        c__7=neig(7,ipnt)
+h_west(ipnt)= 0.5_rw*real( h_bo( ipnt ) + h_bo( c__5 ), rw )
+h_sout(ipnt)= 0.5_rw*real( h_bo( ipnt ) + h_bo( c__7 ), rw )  
+Ow(ipnt)=h_west(ipnt)/dl**2
+Os(ipnt)=h_sout(ipnt)/dl**2
 
 		!if (h_2d(subc(ipnt,1), subc(ipnt,2)) > hdry) then
 		elseif (subc(ipnt,1)==1 .and. 1<subc(ipnt,2) .and. subc(ipnt,2)<mm+1) then					
@@ -520,34 +520,34 @@ subroutine get_equilibrium_thickness_h_0( h_2d, h_0 )
 			Os(ipnt)=h_sout(ipnt)/dl**2
 		elseif (1<subc(ipnt,1) .and. subc(ipnt,1)<lm+1 .and. subc(ipnt,2)==1) then	
 			c__5=neig(5,ipnt)
-			h_west(ipnt)=0.5_rw*real( h_bo( ipnt ) + h_bo( c__5 ), rw )
-			Ow(ipnt)=h_west(ipnt)/dl**2
-			Os(ipnt)=0._rw
-			
-		end if
-	
-	  end do
+                        h_west(ipnt)=0.5_rw*real( h_bo( ipnt ) + h_bo( c__5 ), rw )
+                        Ow(ipnt)=h_west(ipnt)/dl**2
+                        Os(ipnt)=0._rw
+
+                end if
+
+          end do
   
-	  do ipnt = 1,ndeg
-		if (subc(ipnt,1)<lm .and. subc(ipnt,2)<mm) then
-			c__1=neig(1,ipnt)
-			c__3=neig(3,ipnt)
-			Osum(ipnt) = Ow(ipnt) + Ow(c__1) + Os(ipnt) + Os(c__3);
-		elseif (subc(ipnt,1)==lm .and. subc(ipnt,2)<mm) then
-			c__3=neig(3,ipnt)
-			Osum(ipnt)= Ow(ipnt)+ Os(ipnt)+Os(c__3)
-		elseif (subc(ipnt,2)==mm .and. subc(ipnt,1)<lm) then
-			c__1=neig(1,ipnt)
-			Osum(ipnt)=Ow(ipnt)+Os(ipnt)+Ow(c__1)
-		else
-			Osum(ipnt)=Ow(ipnt)+Os(ipnt)
-		end if
-	
-	
-		if (subc(ipnt,1)>0 .and. subc(ipnt,1)<lm+1 .and. subc(ipnt,2)>0 .and. subc(ipnt,2)<mm+1) then
-		Osum_(ipnt) = 1 / Osum(ipnt)
-		end if
-	  end do
+          do ipnt = 1,ndeg
+                if (subc(ipnt,1)<lm .and. subc(ipnt,2)<mm) then
+                        c__1=neig(1,ipnt)
+                        c__3=neig(3,ipnt)
+                        Osum(ipnt) = Ow(ipnt) + Ow(c__1) + Os(ipnt) + Os(c__3);
+                elseif (subc(ipnt,1)==lm .and. subc(ipnt,2)<mm) then
+                        c__3=neig(3,ipnt)
+                        Osum(ipnt)= Ow(ipnt)+ Os(ipnt)+Os(c__3)
+                elseif (subc(ipnt,2)==mm .and. subc(ipnt,1)<lm) then
+                        c__1=neig(1,ipnt)
+                        Osum(ipnt)=Ow(ipnt)+Os(ipnt)+Ow(c__1)
+                else
+                        Osum(ipnt)=Ow(ipnt)+Os(ipnt)
+                end if
+
+
+                if (subc(ipnt,1)>0 .and. subc(ipnt,1)<lm+1 .and. subc(ipnt,2)>0 .and. subc(ipnt,2)<mm+1) then
+                        Osum_(ipnt) = 1 / Osum(ipnt)
+                end if
+          end do
 
     end if
   
@@ -1229,6 +1229,7 @@ subroutine save_metadata()
       write(unit = unum, fmt = *) 'dt3d           = ',  dt3d,            ';'
       write(unit = unum, fmt = *) 'bvis           = ',  bvis,            ';'
       write(unit = unum, fmt = *) 'dvis           = ',  dvis,            ';'
+      write(unit = unum, fmt = *) 'svis           = ',  svis,            ';' 
       write(unit = unum, fmt = *) 'bdrg           = ',  bdrg,            ';'
       write(unit = unum, fmt = *) 'tole           = ',  tole,            ';'
       write(unit = unum, fmt = *) 'nsal           = ',  nsal,            ';'
@@ -1433,20 +1434,27 @@ subroutine update_u( ilay )
            + epsi * dmdx( 1, ipnt, ilay )                             &
            ) * gene
     uold = uold + rhsi * mask * dt
+    
     uold = ufor *          nudg( ipnt, ix_u )                         &
-         + uold * (1._rw - nudg( ipnt, ix_u ))
+           + uold * (1._rw - nudg( ipnt, ix_u ))
+
+    !if (ilay > 1.5_rw) then
+    !    uold = ufor *          nudg( ipnt, ix_u )                         &
+    !       + uold * (1._rw - nudg( ipnt, ix_u ))
+    !end if
+   
     u( ipnt, ilay ) = uold
 
 !   3rd-order upstream-biased advection of layer thickness.
 !   See Shchepetkin & McWilliams, 2005, p.394.
 
-	if (rgld < 0.5_rw) then
-		h_u( ipnt, ilay ) = 0.5_rw * ( uold + abs( uold ) )      & ! max( u, 0. )
-						  * ( hcen - 0.16667_rw * d2hx( c__5 ) ) &
-						  + 0.5_rw * ( uold - abs( uold ) )      & ! min( u, 0. )
-						  * ( hcen - 0.16667_rw * d2hx( ipnt ) )
-	end if
-	
+    if (rgld < 0.5_rw) then
+            h_u( ipnt, ilay ) = 0.5_rw * ( uold + abs( uold ) )      & ! max( u, 0. )
+                                * ( hcen - 0.16667_rw * d2hx( c__5 ) ) &
+                                + 0.5_rw * ( uold - abs( uold ) )      & ! min( u, 0. )
+                                * ( hcen - 0.16667_rw * d2hx( ipnt ) )
+    end if
+
     dmdx( 1, ipnt, ilay ) = dmdx( 2, ipnt, ilay )
     dmdx( 2, ipnt, ilay ) = dmdx( 3, ipnt, ilay )
     dmdx( 3, ipnt, ilay ) = dmd4
@@ -1508,20 +1516,26 @@ subroutine update_v( ilay )
            + epsi * dmdy( 1, ipnt, ilay )                             &
            ) * gene
     vold = vold + rhsi * mask * dt
+    
     vold = vfor *          nudg( ipnt, ix_v )                         &
-         + vold * (1._rw - nudg( ipnt, ix_v ))
+            + vold * (1._rw - nudg( ipnt, ix_v ))
+   !if (ilay > 1.5_rw) then
+   !    vold = vfor *          nudg( ipnt, ix_v )                         &
+   !         + vold * (1._rw - nudg( ipnt, ix_v ))
+   ! end if
+
     v( ipnt, ilay ) = vold
 
 !   3rd-order upstream-biased advection of layer thickness.
 !   See Shchepetkin & McWilliams, 2005, p.394.
 
-	if (rgld < 0.5_rw) then
-		h_v( ipnt, ilay ) = 0.5_rw * ( vold + abs( vold ) )      & ! max( v, 0. )
-						  * ( hcen - 0.16667_rw * d2hy( c__7 ) ) &
-						  + 0.5_rw * ( vold - abs( vold ) )      & ! min( v, 0. )
-						  * ( hcen - 0.16667_rw * d2hy( ipnt ) )
-	end if
-	
+    if (rgld < 0.5_rw) then
+            h_v( ipnt, ilay ) = 0.5_rw * ( vold + abs( vold ) )      & ! max( v, 0. )
+                                * ( hcen - 0.16667_rw * d2hy( c__7 ) ) &
+                                + 0.5_rw * ( vold - abs( vold ) )      & ! min( v, 0. )
+                                * ( hcen - 0.16667_rw * d2hy( ipnt ) )
+    end if
+
     dmdy( 1, ipnt, ilay ) = dmdy( 2, ipnt, ilay )
     dmdy( 2, ipnt, ilay ) = dmdy( 3, ipnt, ilay )
     dmdy( 3, ipnt, ilay ) = dmd4
@@ -1573,10 +1587,13 @@ subroutine update_h()
       hfor = fnud( ipnt, ilay, ix_n )                                &
            + ramp * tide( 1, 1, ipnt, ix_n ) * vecl( ilay )          &
            * cos(   tide( 2, 1, ipnt, ix_n ) - w_ti(1) * ctim )
-
+    
+! both bot and top layers must be nudged
       hlay( ipnt, ilay ) = real( hfor  * nudg( ipnt, ix_n ), r8 )    &
                          + real( 1._rw - nudg( ipnt, ix_n ), r8 ) * hold
 
+
+    
       rs_h( 1, ipnt, ilay ) = rs_h( 2, ipnt, ilay )
       rs_h( 2, ipnt, ilay ) = rs_3
     end do
@@ -1584,18 +1601,57 @@ subroutine update_h()
   end do
   
   if (rgld>0.5_rw) then
-	  do ipnt=1, ndeg
+          do ipnt=1, ndeg
 
-		!tiny correction to top layer to ensure sum of layers is htop-hbot to machine precision                                
-		hlay(ipnt, 1) = hlay(ipnt,1) - real(sum(hlay(ipnt,:)) - real(h_bo(ipnt),r8))
-		if (sum(real(hlay(ipnt, :),r8)) > h_bo(ipnt)) then
-		errm = trim(errm) //' The water column depth is greater than htop-hbot\n '//  &
-					   'from module private_mod.f95,'
-		elseif (sum(real(hlay(ipnt, :),r8)) < h_bo(ipnt)) then
-		errm = trim(errm) //' The water column depth is less than htop-hbot\n '//  &
-					   'from module private_mod.f95,'        
-		end if
-	  end do
+          !tiny correction to top layer to ensure sum of layers is htop-hbot to machine precision
+
+          hlay(ipnt, 1) = hlay(ipnt,1)-0.5*real(sum(hlay(ipnt,:)) - real(h_bo(ipnt),r8))
+          hlay(ipnt, 2) = hlay(ipnt,2)-0.5*real(sum(hlay(ipnt,:)) - real(h_bo(ipnt),r8))
+
+!if (ipnt == 50) then
+!print *, hlay(50,1)
+!print *, hlay(50,2)
+!print *, sum(hlay(ipnt,:))
+!end if
+
+
+!     hlay(ipnt, 1) = hlay(ipnt,1)-real(hlay(ipnt,1)/sum(hlay(ipnt,:)))*(real(sum(hlay(ipnt,:)) - real(h_bo(ipnt),r8)))
+
+ !    hlay(ipnt, 2) = hlay(ipnt,2)-real(hlay(ipnt,2)/sum(hlay(ipnt,:)))*(real(sum(hlay(ipnt,:)) - real(h_bo(ipnt),r8)))
+
+
+!     hlay(ipnt, 1) = hlay(ipnt,1)-.9*(real(sum(hlay(ipnt,:)) - real(h_bo(ipnt),r8)))
+
+ !  hlay(ipnt, 2) = hlay(ipnt,2)-.1*(real(sum(hlay(ipnt,:)) - real(h_bo(ipnt),r8)))
+  ! if (hlay(ipnt,1)>700 .or. hlay(ipnt,1)<0) then
+  !         print *, 'eee', hlay(ipnt,1)
+  ! end if
+   
+   !if (hlay(ipnt,2)>700 .or. hlay(ipnt,2)<0) then
+   !        print *, 'dddd', hlay(ipnt,2)
+   !end if
+   
+ !if (sum(hlay(ipnt,:)) > 700.00001) then
+  !       print *, 'aaaa', sum(hlay(ipnt,:))
+  !       print *, 'bbbb', hlay(ipnt, 1)
+  !       print *, 'cccc', hlay(ipnt,2)
+  !       !read(*,*) ilay
+ !end if    
+
+
+
+               !do ilay= nlay,1, -1                 
+               !     hlay(ipnt, ilay) = hlay(ipnt,ilay) - hlay(ipnt,ilay)/real(sum(hlay(ipnt,:)))   &
+               !			*real(sum(hlay(ipnt,:)) - real(h_bo(ipnt),r8))
+               !end do
+               if (sum(real(hlay(ipnt, :),r8)) > h_bo(ipnt)) then
+                       errm = trim(errm) //' The water column depth is greater than htop-hbot\n '//  &
+                               'from module private_mod.f95,'
+               elseif (sum(real(hlay(ipnt, :),r8)) < h_bo(ipnt)) then
+                       errm = trim(errm) //' The water column depth is less than htop-hbot\n '//  &
+                               'from module private_mod.f95,'        
+               end if
+               end do
   end if
   
 end subroutine update_h
@@ -1608,12 +1664,12 @@ subroutine surf_pressure()
   logical     :: hasConverged
   
   pi_rhs(: ) = 0._rw
-  rp=1.000
+  rp=1.900
   iters=0
   diff=0
   hasConverged=.true.
-  pi_tol=1.e-8_rw
-  maxiters=10000
+  pi_tol=1.e-5_rw
+  maxiters=1000
   
 
 !  Set right-hand side of Poisson equation
@@ -1622,23 +1678,22 @@ subroutine surf_pressure()
   
     ! Add contribution due to x-volume fluxes
     do ipnt=1, ndeg
-    	
-    	if (subc(ipnt,1)>1) then
+        if (subc(ipnt,1)>1) then
         c__5= neig(5,ipnt)
          
        
         pi_rhs(ipnt) = pi_rhs(ipnt)- h_u(ipnt,ilay) / (dl*dt)
         pi_rhs(c__5) = pi_rhs(c__5)+ h_u(ipnt,ilay) / (dl*dt)
-		
-      	end if
+
+        end if
     end do
     
 
     ! Add contribution due to y-volume fluxes
     do ipnt=1, ndeg
-		
 
-      	if (subc(ipnt,2)>1) then
+
+      if (subc(ipnt,2)>1) then
         c__7=neig(7,ipnt)
 
         ! already calculated h_v = v(ipnt,ilay)*h_south(ipnt,ilay)
@@ -1646,7 +1701,7 @@ subroutine surf_pressure()
         pi_rhs(c__7) =pi_rhs(c__7)+ h_v(ipnt,ilay) / (dl*dt)
         
         
-        end if
+      end if
     end do
     
   end do
@@ -1656,40 +1711,40 @@ subroutine surf_pressure()
   maxdiff = pi_tol + 1
   iters = 0
   do while (maxdiff > pi_tol .and. iters < maxiters)
-  	
-  	!print *, 'The maxdiff is', maxdiff
+  
+    !print *, 'The maxdiff is', maxdiff
     !print *, 'The iteration is', iters
     
     maxdiff = 0
     
-	! PSOR default
-	do ipnt=1, ndeg
-	
-	  ! Store current grid value of pi_s
-	  pi_prev(ipnt) = pi_s(ipnt)
-	  pi_s(ipnt) = (1-rp)*pi_s(ipnt) - rp * Osum_(ipnt) * pi_rhs(ipnt)
-	  
-      	
-	  if (subc(ipnt,1)<lm) then
-	  c__1= neig(1, ipnt)
-	  pi_s(ipnt) = pi_s(ipnt)+ rp * Osum_(ipnt) * Ow(c__1)*pi_s(c__1)	  
-	  end if
-	  if (subc(ipnt,2)<mm) then
-	  c__3= neig(3, ipnt)
-	  pi_s(ipnt) = pi_s(ipnt)+ rp * Osum_(ipnt) * Ow(c__3)*pi_s(c__3)
-	  end if
-	  if (subc(ipnt,1)>1) then
-	  c__5= neig(5, ipnt)
-	  pi_s(ipnt) = pi_s(ipnt)+ rp * Osum_(ipnt) * Ow(c__5)*pi_s(c__5)
-	  end if
-	  if (subc(ipnt,2)>1) then
-	  c__7= neig(7, ipnt)
-	  pi_s(ipnt) = pi_s(ipnt)+ rp * Osum_(ipnt) * Ow(c__7)*pi_s(c__7)
-	  end if
-	  
-	  !  operator Os, Ow are defined to be 0 at walls and H/dl^2 elsewhere
-	
-	end do
+   ! PSOR default
+      do ipnt=1, ndeg
+
+          ! Store current grid value of pi_s
+          pi_prev(ipnt) = pi_s(ipnt)
+          pi_s(ipnt) = (1-rp)*pi_s(ipnt) - rp * Osum_(ipnt) * pi_rhs(ipnt)
+ 
+      
+          if (subc(ipnt,1)<lm) then
+                  c__1= neig(1, ipnt)
+                  pi_s(ipnt) = pi_s(ipnt)+ rp * Osum_(ipnt) * Ow(c__1)*pi_s(c__1)
+          end if
+          if (subc(ipnt,2)<mm) then
+                  c__3= neig(3, ipnt)
+                  pi_s(ipnt) = pi_s(ipnt)+ rp * Osum_(ipnt) * Os(c__3)*pi_s(c__3)
+          end if
+          if (subc(ipnt,1)>1) then
+                  c__5= neig(5, ipnt)
+                  pi_s(ipnt) = pi_s(ipnt)+ rp * Osum_(ipnt) * Ow(ipnt)*pi_s(c__5)
+          end if
+          if (subc(ipnt,2)>1) then
+                  c__7= neig(7, ipnt)
+                  pi_s(ipnt) = pi_s(ipnt)+ rp * Osum_(ipnt) * Os(ipnt)*pi_s(c__7)
+          end if
+
+          !  operator Os, Ow are defined to be 0 at walls and H/dl^2 elsewhere
+
+          end do
       
       !  Calculate the absolute difference between iterations (pointwise convergence)
       do ipnt=1, ndeg
@@ -1710,14 +1765,10 @@ subroutine surf_pressure()
     do ipnt = 1, ndeg
         
         if (subc(ipnt,1)>1 .and. subc(ipnt,1)<lm+1) then
-        c__5= neig( 5, ipnt)
-        	
-        	
-        	u(ipnt,ilay) =u(ipnt,ilay) - dt/dl*pi_s(ipnt)
-		    	
-		    	u(ipnt,ilay) =real(u(ipnt,ilay) +dt/dl*pi_s(c__5), r8)
-
-		end if
+                c__5= neig( 5, ipnt)
+                u(ipnt,ilay) =u(ipnt,ilay) - dt/dl*pi_s(ipnt)
+                u(ipnt,ilay) =real(u(ipnt,ilay) +dt/dl*pi_s(c__5), r8)
+        end if
     end do
     
   end do
@@ -1727,22 +1778,18 @@ subroutine surf_pressure()
   do ilay=1, nlay
     
     do ipnt = 1, ndeg
-    	
-        
-    	if (subc(ipnt,2)>1 .and. subc(ipnt,2)<mm+1) then
+    if (subc(ipnt,2)>1 .and. subc(ipnt,2)<mm+1) then
         c__7 = neig(7, ipnt)
-        	
-        	v(ipnt,ilay) = v(ipnt,ilay)- dt/dl*pi_s(ipnt)
-        		
-        		v(ipnt, ilay) = real(v(ipnt, ilay) + dt/dl* pi_s(c__7), r8)
-        		
-        end if
+        v(ipnt,ilay) = v(ipnt,ilay)- dt/dl*pi_s(ipnt)
+        v(ipnt, ilay) = real(v(ipnt, ilay) + dt/dl* pi_s(c__7), r8)
+    end if
     end do
     
   end do
   
  ! insert statement to state if haven't converged within max iterations?
-          
+        
+! print *, maxval(pi_s)  
 end subroutine surf_pressure
 
 subroutine integrate_time()
@@ -2003,13 +2050,13 @@ subroutine first_three_timesteps( tstp )
 !   Backward step: u,v are updated to `n+1' using eta(t=n+1).
 !   Alternate the order in which velocity components are updated.
 !     (Bleck and Smith JGR 1990 vol.95 no.C3, p.3276).
-	if ( mod( tstp, 2 ) == 0 ) then ! If n is even, ...
-		call update_u( ilay )
-		call update_v( ilay )
-	else                            ! If n is odd,  ...
-		call update_v( ilay )
-		call update_u( ilay )
-	end if
+        if ( mod( tstp, 2 ) == 0 ) then ! If n is even, ...
+                call update_u( ilay )
+                call update_v( ilay )
+        else                            ! If n is odd,  ...
+                call update_v( ilay )
+                call update_u( ilay )
+        end if
     
     if ( flag_nudging .and. mcbc < 0.5_rw ) then
 !     Apply vanishing normal derivative at non-periodic open boundaries.
@@ -2018,7 +2065,7 @@ subroutine first_three_timesteps( tstp )
   end do
   
   if (rgld > 0.5_rw) then
-  	  do ilay = 1, nlay
+  do ilay = 1, nlay
     do ipnt = 1, ndeg
       c__5 = neig( 5, ipnt )
       c__7 = neig( 7, ipnt )
@@ -2044,29 +2091,29 @@ subroutine gener_forward_backward( tstp, upst )
 ! `Generalized' Forward-Backward
 ! Shchepetkin & McWilliams (2005, Ocean Modelling, Eq. 2.49)
 ! The `standard' scheme is used if g_fb=0. inside file shared_mod.f95.
-	
-	
-	!This is the proper place to update hu, hv for a rigid lid
-  if (rgld > 0.5_rw) then
-	do ilay = 1, nlay
-		do ipnt = 1, ndeg
-		c__5 = neig( 5, ipnt )
-		c__7 = neig( 7, ipnt )
-		mask = mk_u(       ipnt )
-    	hcen = real( hlay( c__5, ilay ) + hlay( ipnt, ilay ), rw ) / (1._rw + mask)
-		h_u( ipnt, ilay ) = 0.5_rw * ( u(ipnt,ilay) + abs( u(ipnt,ilay) ) )      & ! max( u, 0. )
-						  * ( hcen - 0.16667_rw * d2hx( c__5 ) ) &
-						  + 0.5_rw * ( u(ipnt,ilay) - abs( u(ipnt,ilay) ) )      & ! min( u, 0. )
-						  * ( hcen - 0.16667_rw * d2hx( ipnt ) )
-		mask = mk_v(       ipnt )
-    	hcen = real( hlay( c__7, ilay ) + hlay( ipnt, ilay ), rw ) / (1._rw + mask)			  
-		h_v( ipnt, ilay ) = 0.5_rw * ( v(ipnt,ilay) + abs( v(ipnt,ilay) ) )      & ! max( v, 0. )
-						  * ( hcen - 0.16667_rw * d2hy( c__7 ) ) &
-						  + 0.5_rw * ( v(ipnt,ilay) - abs( v(ipnt,ilay) ) )      & ! min( v, 0. )
-						  * ( hcen - 0.16667_rw * d2hy( ipnt ) )
 
-		end do
-	end do
+
+!This is the proper place to update hu, hv for a rigid lid
+  if (rgld > 0.5_rw) then
+      do ilay = 1, nlay
+          do ipnt = 1, ndeg
+          c__5 = neig( 5, ipnt )
+          c__7 = neig( 7, ipnt )
+          mask = mk_u(       ipnt )
+          hcen = real( hlay( c__5, ilay ) + hlay( ipnt, ilay ), rw ) / (1._rw + mask)
+          h_u( ipnt, ilay ) = 0.5_rw * ( u(ipnt,ilay) + abs( u(ipnt,ilay) ) )      & ! max( u, 0. )
+                             * ( hcen - 0.16667_rw * d2hx( c__5 ) ) &
+                             + 0.5_rw * ( u(ipnt,ilay) - abs( u(ipnt,ilay) ) )      & ! min( u, 0. )
+                             * ( hcen - 0.16667_rw * d2hx( ipnt ) )
+          mask = mk_v(       ipnt )
+          hcen = real( hlay( c__7, ilay ) + hlay( ipnt, ilay ), rw ) / (1._rw + mask)
+          h_v( ipnt, ilay ) = 0.5_rw * ( v(ipnt,ilay) + abs( v(ipnt,ilay) ) )      & ! max( v, 0. )
+                             * ( hcen - 0.16667_rw * d2hy( c__7 ) ) &
+                             + 0.5_rw * ( v(ipnt,ilay) - abs( v(ipnt,ilay) ) )      & ! min( v, 0. )
+                             * ( hcen - 0.16667_rw * d2hy( ipnt ) )
+
+          end do
+      end do
   end if
   
   call update_h() ! 14%
@@ -2086,13 +2133,13 @@ subroutine gener_forward_backward( tstp, upst )
 !   Alternate the order in which velocity components are updated.
 !     (Bleck and Smith JGR 1990 vol.95 no.C3, p.3276).
 
-	if ( mod( tstp, 2 ) == 0 ) then ! If n is even, ...
-		call update_u( ilay ) ! 28%
-		call update_v( ilay ) ! 28%
-	else                            ! If n is odd,  ...
-		call update_v( ilay )
-		call update_u( ilay )
-	end if
+    if ( mod( tstp, 2 ) == 0 ) then ! If n is even, ...
+            call update_u( ilay ) ! 28%
+            call update_v( ilay ) ! 28%
+    else                            ! If n is odd,  ...
+            call update_v( ilay )
+            call update_u( ilay )
+    end if
 
 
     if ( flag_nudging .and. mcbc < 0.5_rw ) then
@@ -2103,27 +2150,26 @@ subroutine gener_forward_backward( tstp, upst )
   end do ! loop on layers
   
   if (rgld > 0.5_rw) then
-  	do ilay = 1, nlay
-		do ipnt = 1, ndeg
-		c__5 = neig( 5, ipnt )
-		c__7 = neig( 7, ipnt )
-		mask = mk_u(       ipnt )
-    	hcen = real( hlay( c__5, ilay ) + hlay( ipnt, ilay ), rw ) / (1._rw + mask)
-		h_u( ipnt, ilay ) = 0.5_rw * ( u(ipnt,ilay) + abs( u(ipnt,ilay) ) )      & ! max( u, 0. )
-						  * ( hcen - 0.16667_rw * d2hx( c__5 ) ) &
-						  + 0.5_rw * ( u(ipnt,ilay) - abs( u(ipnt,ilay) ) )      & ! min( u, 0. )
-						  * ( hcen - 0.16667_rw * d2hx( ipnt ) )
-		mask = mk_v(       ipnt )
-    	hcen = real( hlay( c__7, ilay ) + hlay( ipnt, ilay ), rw ) / (1._rw + mask)			  
-		h_v( ipnt, ilay ) = 0.5_rw * ( v(ipnt,ilay) + abs( v(ipnt,ilay) ) )      & ! max( v, 0. )
-						  * ( hcen - 0.16667_rw * d2hy( c__7 ) ) &
-						  + 0.5_rw * ( v(ipnt,ilay) - abs( v(ipnt,ilay) ) )      & ! min( v, 0. )
-						  * ( hcen - 0.16667_rw * d2hy( ipnt ) )
+       do ilay = 1, nlay
+           do ipnt = 1, ndeg
+                c__5 = neig( 5, ipnt )
+                c__7 = neig( 7, ipnt )
+                mask = mk_u(       ipnt )
+                hcen = real( hlay( c__5, ilay ) + hlay( ipnt, ilay ), rw ) / (1._rw + mask)
+                h_u( ipnt, ilay ) = 0.5_rw * ( u(ipnt,ilay) + abs( u(ipnt,ilay) ) )      & ! max( u, 0. )
+                                   * ( hcen - 0.16667_rw * d2hx( c__5 ) ) &
+                                   + 0.5_rw * ( u(ipnt,ilay) - abs( u(ipnt,ilay) ) )      & ! min( u, 0. )
+                                   * ( hcen - 0.16667_rw * d2hx( ipnt ) )
+                mask = mk_v(       ipnt )
+                hcen = real( hlay( c__7, ilay ) + hlay( ipnt, ilay ), rw ) / (1._rw + mask)
+                h_v( ipnt, ilay ) = 0.5_rw * ( v(ipnt,ilay) + abs( v(ipnt,ilay) ) )      & ! max( v, 0. )
+                                   * ( hcen - 0.16667_rw * d2hy( c__7 ) ) &
+                                   + 0.5_rw * ( v(ipnt,ilay) - abs( v(ipnt,ilay) ) )      & ! min( v, 0. )
+                                   * ( hcen - 0.16667_rw * d2hy( ipnt ) )
+            end do
+        end do
 
-		end do
-	end do
-	
-    call surf_pressure()
+        call surf_pressure()
 
   end if
   
@@ -2175,18 +2221,18 @@ subroutine update_mont_rvor_pvor_dive_kine( ilay )
     end do
 
 !   3- Barotropic contribution.
-	
-	if (rgld<0.5_rw) then
-	
-    hcol = 0._r8
 
-    do i = 1, nlay
-      hcol = hcol + hlay( ipnt, i )
-    end do
+    if (rgld<0.5_rw) then
 
-    mpot = hcol - real( h_bo( ipnt ), r8 ) + mpot
-	
-	end if
+      hcol = 0._r8
+
+      do i = 1, nlay
+         hcol = hcol + hlay( ipnt, i )
+      end do
+
+      mpot = hcol - real( h_bo( ipnt ), r8 ) + mpot
+
+    end if
 !   4- Kinetic energy (Montgomery potential becomes Bernoulli potential).
 !      kine = 0.5 * ave_x(u**2) + 0.5 * ave_y(v**2), defined at cell-center.
 !        e.g., Arakawa & Lamb MWR 1981, Sadourny MWR 1975.
@@ -2282,7 +2328,7 @@ subroutine update_viscosity( ilay )
     d_le = dive( c__5 )  !         cell on left.
     d_bl = dive( c__6 )  !         cell at bottom-left.
     d_bo = dive( c__7 )  !         cell at bottom.
-
+ 
 !   Leith's viscosity `nu' (1996, Physica D).
 !     `v_ll' is defined at Lower-Left corner.
 !     `v_cc' is defined at Center of Cell.
@@ -2300,7 +2346,18 @@ subroutine update_viscosity( ilay )
                        + ( d_cc - d_bo ) * ( d_cc - d_bo )     &
                        + ( d_le - d_bl ) * ( d_le - d_bl )
     v_ll( ipnt, ilay ) = sqrt( v_ll( ipnt, ilay ) ) * dvis * dl * dl &
-                       + bvis
+                       + bvis 
+!   Biharmonic viscosity.  nu = svis / dl * hlay
+!   See Griffies and Hallberg, 2000, Monthly Weather Review.
+
+!if (subc(ipnt,1)<lm .and. subc(ipnt,1)>2 .and. subc(ipnt,2)<mm .and. subc(ipnt,2)>2)  then 
+!            v_ll( ipnt, ilay ) = v_ll( ipnt, ilay ) +  svis / &
+!        (1/2* (hlay( ipnt, ilay) + hlay( c__6, ilay))*dl)
+!elseif (subc(ipnt,1)==2 .and. subc(ipnt,2)<mm .and. subc(ipnt,2)>2) then        
+!        v_ll(ipnt,ilay) = v_ll(c__1,ilay)
+!elseif (subc(ipnt,2)==2 .and. subc(ipnt,1)<lm .and. subc(ipnt,1)>2) then
+!        v_ll(ipnt,ilay) = v_ll(c__3,ilay)
+!end if 
 
 !   Leith's viscosity `nu' (1996, Physica D).
     v_cc( ipnt, ilay ) = ( r_br - r_bl ) * ( r_br - r_bl )     &
@@ -2314,6 +2371,16 @@ subroutine update_viscosity( ilay )
                        + ( d_cc - d_bo ) * ( d_cc - d_bo )
     v_cc( ipnt, ilay ) = sqrt( v_cc( ipnt, ilay ) ) * dvis * dl * dl &
                        + bvis
+! Biharmonic viscosity.               
+if (subc(ipnt,1)<lm .and. subc(ipnt,1)>1 .and. subc(ipnt,2)<mm .and. subc(ipnt,2)>1) then
+    v_cc( ipnt, ilay ) = v_cc( ipnt, ilay ) + svis / (dl*hlay( ipnt, ilay))
+    !if (v_cc(ipnt,ilay) > 30 .or. v_cc(ipnt,ilay)<5) then
+    !print *, '' , v_cc(ipnt, ilay), subc(ipnt,1), subc(ipnt,2), ilay, hlay(ipnt,ilay)
+    !read(*,*) v_cc(ipnt,ilay)
+    !end if
+ end if
+
+   
   end do
 !$OMP END PARALLEL DO
 end subroutine update_viscosity
@@ -2571,7 +2638,7 @@ subroutine write_array( var, irec, is_init )
     ilay = 1
     if (rgld < 0.5_rw) then
        do ipnt=1, ndeg
-       		ior4( ipnt, ilay )                           &
+          ior4( ipnt, ilay )                           &
             = real(       hlay( ipnt, ilay     )       &
                   - real( h_0(  ipnt, ilay     ), r8 ) &
                   + real( ior4( ipnt, ilay + 1 ), r8 ), r4 )
@@ -2622,7 +2689,7 @@ subroutine write_array( var, irec, is_init )
         ior4( ipnt, ilay )                                               &
           = real( bvis                                                   &
                 + dvis * dl**2                                           &
-                * sqrt( ( wrk1( c__1, ilay ) - wrk1( ipnt, ilay ) )**2   &
+                * sqrt( ( wrk1( c__1, ilay ) - wrk1( ipnt, ilay ) )**2   &           
                       + ( wrk1( c__2, ilay ) - wrk1( c__3, ilay ) )**2   &
                       + ( wrk1( c__3, ilay ) - wrk1( ipnt, ilay ) )**2   &
                       + ( wrk1( c__2, ilay ) - wrk1( c__1, ilay ) )**2   &
