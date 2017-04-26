@@ -39,6 +39,7 @@ module private_mod
     v   (0 : ndeg, nlay), & ! Meridional velocity (m    s**(-1)).
     tt3d(0 : ndeg, 2, nlay),& ! Surface stress forcing (Pascals), cell-centered.
     tb3d(0 : ndeg, 2, nlay),& ! Bottom  stress         (Pascals), at u/v points.
+    tu3d(0 : ndeg, 2, nlay),& ! Top  stress         (Pascals), at u/v points.
     taus(0 : ndeg, 2   ), & ! Surface stress forcing (Pascals), cell-centered.
     rvor(0 : ndeg      ), & ! Relative  vorticity   (        s**(-1)).
     pvor(0 : ndeg      ), & ! Potential vorticity   (m**(-1) s**(-1)).
@@ -292,6 +293,7 @@ subroutine initialize_variables()
   taus(:,2    ) = aimag( tauw )
   tt3d(:,:,:  ) = 0._rw
   tb3d(:,:,:  ) = 0._rw
+  tu3d(:,:,:  ) = 0._rw
 end subroutine initialize_variables
 
 subroutine get_equilibrium_thickness_h_0( h_2d, h_0 )
@@ -1014,6 +1016,16 @@ subroutine check_consistency_options()
     errm = trim(errm) // ' linear bottom drag coefficient bdrg has units ' // &
            'of m s**(-1) and should be within: 0 <= bdrg < 5x10**(-3) x u_max.'
   end if
+  
+  if ( (tdrg < 0._rw .or. tdrg > 15.e-3_rw) .and. qdrg > 0.5_rw ) then
+    errc = - 1
+    errm = trim(errm) // ' quadratic top drag coefficient tdrg ' // &
+           'should be within: 0 <= tdrg < 5x10**(-3).'
+  elseif ( tdrg < 0._rw .or. tdrg > 5.e-2_rw ) then
+    errc = - 1
+    errm = trim(errm) // ' linear top drag coefficient tdrg has units ' // &
+           'of m s**(-1) and should be within: 0 <= tdrg < 5x10**(-3) x u_max.'
+  end if
 
   if ( errc == 0 ) then
     errm = errm(1 : lerm)
@@ -1231,6 +1243,7 @@ subroutine save_metadata()
       write(unit = unum, fmt = *) 'dvis           = ',  dvis,            ';'
       write(unit = unum, fmt = *) 'svis           = ',  svis,            ';' 
       write(unit = unum, fmt = *) 'bdrg           = ',  bdrg,            ';'
+      write(unit = unum, fmt = *) 'tdrg           = ',  tdrg,            ';'
       write(unit = unum, fmt = *) 'tole           = ',  tole,            ';'
       write(unit = unum, fmt = *) 'nsal           = ',  nsal,            ';'
       write(unit = unum, fmt = *) 'hsal           = ',  hsal,            ';'
@@ -1423,6 +1436,7 @@ subroutine update_u( ilay )
                                     + h_v( c__4, ilay ) )             &
          + tauw            * i_r0 * i__h                              &
          - tb3d( ipnt, 1, ilay ) * i_r0 * i__h                        &
+        ! - tu3d( ipnt, 1, ilay ) * i_r0 * i__h                        &
          + ( v_cc( ipnt, ilay ) * dive( ipnt )                        &
            - v_cc( c__5, ilay ) * dive( c__5 ) ) * i_dl               &
          - ( v_ll( c__3, ilay ) * rvor( c__3 )                        &
@@ -1505,6 +1519,7 @@ subroutine update_v( ilay )
                                     + h_u( c__8, ilay ) )             &
          + tauw                  * i_r0 * i__h                        &
          - tb3d( ipnt, 2, ilay ) * i_r0 * i__h                        &
+        ! - tu3d( ipnt, 2, ilay ) * i_r0 * i__h                        &
          + ( v_cc( ipnt, ilay ) * dive( ipnt )                        &
            - v_cc( c__7, ilay ) * dive( c__7 ) ) * i_dl               &
          + ( v_ll( c__1, ilay ) * rvor( c__1 )                        &
@@ -1879,7 +1894,10 @@ subroutine distribute_stress()
   real( rw ) :: hcum, sofar, uatv, vatu, &
                 layt( 0 : ndeg, nlay ),  &
                 layb( 0 : ndeg, nlay ),  &
-                taub( 0 : ndeg, 2    )
+                layu( 0 : ndeg, nlay ),  &
+                taub( 0 : ndeg, 2    ),  &
+                taut( 0 : ndeg, 2    ),  &
+                taus( 0 : ndeg, 2    )
   real( r8 ) :: hs_8
 
   hs_8 = real( hsal, r8 )
@@ -1910,7 +1928,7 @@ subroutine distribute_stress()
       end do
 !$OMP END PARALLEL DO
     end do
-  elseif ( any( abs(taus(:,:)) > 1.e-7_rw ) ) then
+  elseif ( any( abs(taus(:,:)) > 1.e-7_rw )) then
 !$OMP PARALLEL DO PRIVATE(ipnt)
     do ipnt = 0, ndeg
       layt( ipnt, : ) = 0._rw
@@ -1939,6 +1957,7 @@ subroutine distribute_stress()
     end do
 !$OMP END PARALLEL DO
   end if
+
 
   if ( bdrg > 1.e-7_rw ) then ! Need to calculate/update bottom stress.
 !$OMP PARALLEL DO PRIVATE(ipnt,ilay,klay,c__1,c__3,c__4,c__5,c__7,c__8,vatu,uatv)
@@ -1982,7 +2001,7 @@ subroutine distribute_stress()
       do ipnt = 1, ndeg
         c__5 = neig( 5, ipnt )
         c__7 = neig( 7, ipnt )
-!       tb3d and taub are defined at u/v points..
+!       tb3d, and taub are defined at u/v points..
 !       layb is cell-centered (needs interpolation).
         tb3d( ipnt, 1, ilay ) =   taub( ipnt, 1    ) * 0.5_rw &
                               * ( layb( ipnt, ilay )          &
@@ -1990,6 +2009,63 @@ subroutine distribute_stress()
         tb3d( ipnt, 2, ilay ) =   taub( ipnt, 2    ) * 0.5_rw &
                               * ( layb( ipnt, ilay )          &
                                 + layb( c__7, ilay ) )
+      end do
+!$OMP END PARALLEL DO
+    end do
+  end if
+
+  if ( tdrg > 1.e-7_rw ) then ! Need to calculate/update top stress.
+!$OMP PARALLEL DO PRIVATE(ipnt,ilay,klay,c__1,c__3,c__4,c__5,c__7,c__8,vatu,uatv)
+    do ipnt = 0, ndeg
+      ilay = 1 ! Default layer for top stress.
+      if ( ocrp > 0.5_rw ) then
+!       Top stress is calculated from the layer that is closest to the
+!         surface while having a thickness > (2 * hsal).
+        do klay = 1, nlay ! Top -> Down.
+          if ( hlay( ipnt, klay ) > (2._r8 * hs_8) ) then
+            ilay = klay
+            exit
+          end if
+        end do
+      end if
+      c__1 = neig( 1, ipnt )
+      c__3 = neig( 3, ipnt )
+      c__4 = neig( 4, ipnt )
+      c__5 = neig( 5, ipnt )
+      c__7 = neig( 7, ipnt )
+      c__8 = neig( 8, ipnt )
+      vatu = 0.25_rw * v( ipnt, ilay ) &
+           + 0.25_rw * v( c__3, ilay ) &
+           + 0.25_rw * v( c__4, ilay ) &
+           + 0.25_rw * v( c__5, ilay )
+      uatv = 0.25_rw * u( ipnt, ilay ) &
+           + 0.25_rw * u( c__1, ilay ) &
+           + 0.25_rw * u( c__7, ilay ) &
+           + 0.25_rw * u( c__8, ilay )
+      taut( ipnt, 1 ) = u( ipnt, ilay ) * tdrg * rhon( ilay )         &
+                      * ( qdrg * sqrt( u( ipnt, ilay )**2 + vatu**2 ) &
+                        + 1._rw - qdrg )
+      taut( ipnt, 2 ) = v( ipnt, ilay ) * tdrg * rhon( ilay )         &
+                      * ( qdrg * sqrt( v( ipnt, ilay )**2 + uatv**2 ) &
+                        + 1._rw - qdrg )
+    end do
+!$OMP END PARALLEL DO
+
+    do ilay = 1, nlay
+!$OMP PARALLEL DO PRIVATE(ipnt,c__5,c__7)
+      do ipnt = 1, ndeg
+        c__5 = neig( 5, ipnt )
+        c__7 = neig( 7, ipnt )
+!       tu3d, taut are defined at u/v points..
+!       layu is cell-centered (needs interpolation).
+
+        tu3d( ipnt, 1, ilay ) =   taut( ipnt, 1    ) * 0.5_rw &
+                              * ( layu( ipnt, ilay )          &
+                                + layu( c__5, ilay ) )
+        tu3d( ipnt, 2, ilay ) =   taut( ipnt, 2    ) * 0.5_rw &
+                              * ( layu( ipnt, ilay )          &
+                                + layu( c__7, ilay ) )
+
       end do
 !$OMP END PARALLEL DO
     end do
@@ -2350,7 +2426,7 @@ subroutine update_viscosity( ilay )
 !   Biharmonic viscosity.  nu = svis / dl * hlay
 !   See Griffies and Hallberg, 2000, Monthly Weather Review.
   v_ll( ipnt, ilay ) = v_ll( ipnt, ilay ) + 1/dl* svis / &
-        max( hlay( ipnt, ilay),1._rw) 
+        max((1/2* hlay( ipnt, ilay)+hlay(c__6,ilay)),1._rw) 
    !  if (v_ll(ipnt,ilay) > 30 .or. v_ll(ipnt,ilay)<5) then
    ! print *, '' , v_ll(ipnt, ilay), subc(ipnt,1), subc(ipnt,2), ilay, hlay(ipnt,ilay)
    ! read(*,*) v_ll(ipnt,ilay)
