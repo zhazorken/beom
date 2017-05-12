@@ -37,6 +37,10 @@ module private_mod
     h_v (0 : ndeg, nlay), & ! h*v                 (m**2 s**(-1)).
     u   (0 : ndeg, nlay), & ! Zonal velocity      (m    s**(-1)).
     v   (0 : ndeg, nlay), & ! Meridional velocity (m    s**(-1)).
+    UU4 (0 : ndeg, nlay), & ! Biharmonic viscosity term
+    VV4 (0 : ndeg, nlay), & ! Biharmonic viscosity term 
+    delu(0 : ndeg, nlay), & ! Laplacian of u      (m**(-1) s**(-1))
+    delv(0 : ndeg, nlay), & ! Laplacian of v      (m**(-1) s**(-1)) 
     tt3d(0 : ndeg, 2, nlay),& ! Surface stress forcing (Pascals), cell-centered.
     tb3d(0 : ndeg, 2, nlay),& ! Bottom  stress         (Pascals), at u/v points.
     tu3d(0 : ndeg, 2, nlay),& ! Top  stress         (Pascals), at u/v points.
@@ -258,6 +262,10 @@ subroutine initialize_variables()
   h_v( :,:    ) = 0._rw
   u(   :,:    ) = 0._rw
   v(   :,:    ) = 0._rw
+  delu(:,:    ) = 0._rw
+  delv(:,:    ) = 0._rw
+  UU4( :,:    ) = 0._rw
+  VV4( :,:    ) = 0._rw
   hdot(:,:    ) = 0._rw
   w_ti(:      ) = 0._rw
   mkpe(:      ) = 0._rw
@@ -1436,18 +1444,31 @@ subroutine update_u( ilay )
                                     + h_v( c__4, ilay ) )             &
          + tauw            * i_r0 * i__h                              &
          - tb3d( ipnt, 1, ilay ) * i_r0 * i__h                        &
-        ! - tu3d( ipnt, 1, ilay ) * i_r0 * i__h                        &
-         + ( v_cc( ipnt, ilay ) * dive( ipnt )                        &
-           - v_cc( c__5, ilay ) * dive( c__5 ) ) * i_dl               &
-         - ( v_ll( c__3, ilay ) * rvor( c__3 )                        &
-           - v_ll( ipnt, ilay ) * rvor( ipnt ) ) * i_dl               &
+         - tu3d( ipnt, 1, ilay ) * i_r0 * i__h                        &
          + bodf( ilay, 1 )                                            &
          + ( del1 * dmd4                                              &
            + del2 * dmdx( 3, ipnt, ilay )                             &
            + gamm * dmdx( 2, ipnt, ilay )                             &
            + epsi * dmdx( 1, ipnt, ilay )                             &
            ) * gene
-    uold = uold + rhsi * mask * dt
+!if (rhsi>1e-7) then
+!print *,'ipnt is: ', ipnt,'old rhsi: ',rhsi
+!end if
+   if (svis>0._rw) then    
+      rhsi = rhsi -  v_cc( ipnt, ilay) * i_dl* real( UU4(ipnt,ilay)      &
+       - UU4(c__5,ilay) + VV4(c__3,ilay) - VV4(ipnt,ilay))*i__h
+   else   
+       rhsi = rhsi +  ( v_cc( ipnt, ilay ) * dive( ipnt )             &
+           - v_cc( c__5, ilay ) * dive( c__5 ) ) * i_dl               &
+         - ( v_ll( c__3, ilay ) * rvor( c__3 )                        &
+           - v_ll( ipnt, ilay ) * rvor( ipnt ) ) * i_dl               
+   end if
+   !if (rhsi>1e-7) then
+!print *,'ipnt is: ', ipnt,'new rhsi: ', rhsi,  'at i,j: ',subc(ipnt,1), subc(ipnt,2)
+!print *, 'UU4 and VV4', UU4(ipnt,ilay), UU4(c__5,ilay), VV4(c__3,ilay), VV4(ipnt,ilay),hcen
+!   read(*,*) 
+!end if
+   uold = uold + rhsi * mask * dt
     
     uold = ufor *          nudg( ipnt, ix_u )                         &
            + uold * (1._rw - nudg( ipnt, ix_u ))
@@ -1519,18 +1540,26 @@ subroutine update_v( ilay )
                                     + h_u( c__8, ilay ) )             &
          + tauw                  * i_r0 * i__h                        &
          - tb3d( ipnt, 2, ilay ) * i_r0 * i__h                        &
-        ! - tu3d( ipnt, 2, ilay ) * i_r0 * i__h                        &
-         + ( v_cc( ipnt, ilay ) * dive( ipnt )                        &
-           - v_cc( c__7, ilay ) * dive( c__7 ) ) * i_dl               &
-         + ( v_ll( c__1, ilay ) * rvor( c__1 )                        &
-           - v_ll( ipnt, ilay ) * rvor( ipnt ) ) * i_dl               &
+         - tu3d( ipnt, 2, ilay ) * i_r0 * i__h                        &
          + bodf( ilay, 2 )                                            &
          + ( del1 * dmd4                                              &
            + del2 * dmdy( 3, ipnt, ilay )                             &
            + gamm * dmdy( 2, ipnt, ilay )                             &
            + epsi * dmdy( 1, ipnt, ilay )                             &
            ) * gene
-    vold = vold + rhsi * mask * dt
+   if (svis>0._rw) then         
+     hcen = real( hlay( ipnt, ilay ) + hlay( c__7, ilay ), rw ) / (1._rw + mask)
+      rhsi = rhsi -  v_cc( ipnt, ilay) * i_dl* ( VV4(c__1,ilay)       &
+       - VV4(ipnt,ilay) - UU4(ipnt,ilay) - UU4(c__7,ilay))*i__h      
+   
+   else   
+       rhsi = rhsi+ ( v_cc( ipnt, ilay ) * dive( ipnt )             &
+           - v_cc( c__7, ilay ) * dive( c__7 ) ) * i_dl               &
+         + ( v_ll( c__1, ilay ) * rvor( c__1 )                        &
+           - v_ll( ipnt, ilay ) * rvor( ipnt ) ) * i_dl               
+   end if
+   
+   vold = vold + rhsi * mask * dt
     
     vold = vfor *          nudg( ipnt, ix_v )                         &
             + vold * (1._rw - nudg( ipnt, ix_v ))
@@ -1896,8 +1925,7 @@ subroutine distribute_stress()
                 layb( 0 : ndeg, nlay ),  &
                 layu( 0 : ndeg, nlay ),  &
                 taub( 0 : ndeg, 2    ),  &
-                taut( 0 : ndeg, 2    ),  &
-                taus( 0 : ndeg, 2    )
+                taum( 0 : ndeg, 2    )
   real( r8 ) :: hs_8
 
   hs_8 = real( hsal, r8 )
@@ -1959,6 +1987,30 @@ subroutine distribute_stress()
   end if
 
 
+  if ( tdrg > 1.e-7_rw  .and. ocrp > 0.5_rw ) then ! Save some cycles
+    do ilay = 1, nlay ! Top -> Down
+!$OMP PARALLEL DO PRIVATE(ipnt,hcum,sofar,klay)
+      do ipnt = 0, ndeg
+        layu(ipnt, ilay) = 0._rw ! Initialization.
+        hcum             = 0._rw
+        sofar            = sum( layu(ipnt, 1 : ilay) ) ! 0. <= sofar <= 1.
+        do klay = 1, ilay
+          hcum = hcum + max(0._rw, real( hlay(ipnt, klay), rw ) - 1.5_rw * hsal)
+        end do
+        layu(ipnt, ilay) = min( hcum, hsbl ) / hsbl - sofar
+        layu(ipnt, ilay) = max( layu(ipnt, ilay), 0._rw ) ! Round-off errors.
+      end do
+!$OMP END PARALLEL DO
+    end do
+  elseif ( tdrg > 1.e-7_rw ) then
+!$OMP PARALLEL DO PRIVATE(ipnt)
+    do ipnt = 0, ndeg
+      layu( ipnt, : ) = 0._rw
+      layu( ipnt, 1 ) = 1._rw
+    end do
+!$OMP END PARALLEL DO
+  end if
+
   if ( bdrg > 1.e-7_rw ) then ! Need to calculate/update bottom stress.
 !$OMP PARALLEL DO PRIVATE(ipnt,ilay,klay,c__1,c__3,c__4,c__5,c__7,c__8,vatu,uatv)
     do ipnt = 0, ndeg
@@ -1994,7 +2046,11 @@ subroutine distribute_stress()
                       * ( qdrg * sqrt( v( ipnt, ilay )**2 + uatv**2 ) &
                         + 1._rw - qdrg )
     end do
+  
 !$OMP END PARALLEL DO
+!print *, 'min h ' , minval(hlay(: ,2)), minloc(hlay(:,2)) , klay       
+!print *, 'minbottaub=', minval(taub(:,2)), 'minbotv',minval(v(:,2)), 'bdrg*rhon', bdrg*rhon(2)
+!print *, 'first five terms of taub v', taub(1:5,2)
 
     do ilay = 1, nlay
 !$OMP PARALLEL DO PRIVATE(ipnt,c__5,c__7)
@@ -2014,6 +2070,7 @@ subroutine distribute_stress()
     end do
   end if
 
+ ! print *, '1111', maxval(taum(:,1)), maxval(taum(:,2)), maxval(taub(:,1)), maxval(taub(:,2))
   if ( tdrg > 1.e-7_rw ) then ! Need to calculate/update top stress.
 !$OMP PARALLEL DO PRIVATE(ipnt,ilay,klay,c__1,c__3,c__4,c__5,c__7,c__8,vatu,uatv)
     do ipnt = 0, ndeg
@@ -2042,27 +2099,31 @@ subroutine distribute_stress()
            + 0.25_rw * u( c__1, ilay ) &
            + 0.25_rw * u( c__7, ilay ) &
            + 0.25_rw * u( c__8, ilay )
-      taut( ipnt, 1 ) = u( ipnt, ilay ) * tdrg * rhon( ilay )         &
+      taum( ipnt, 1 ) = u( ipnt, ilay ) * tdrg * rhon( ilay )         &
                       * ( qdrg * sqrt( u( ipnt, ilay )**2 + vatu**2 ) &
                         + 1._rw - qdrg )
-      taut( ipnt, 2 ) = v( ipnt, ilay ) * tdrg * rhon( ilay )         &
+      taum( ipnt, 2 ) = v( ipnt, ilay ) * tdrg * rhon( ilay )         &
                       * ( qdrg * sqrt( v( ipnt, ilay )**2 + uatv**2 ) &
                         + 1._rw - qdrg )
     end do
 !$OMP END PARALLEL DO
+!print *, '2222', maxval(taum(:,1)) , maxval(taum(:,2))
+!print *, 'maxtoptaum=', maxval(taum(:,1)), 'maxtopv',maxval(v(:,1)), 'tdrg*rhon(top)', tdrg*rhon(1)
+! print *, 'frist five terms of taum v', taum(1:5, 2)
 
+!
     do ilay = 1, nlay
 !$OMP PARALLEL DO PRIVATE(ipnt,c__5,c__7)
       do ipnt = 1, ndeg
         c__5 = neig( 5, ipnt )
         c__7 = neig( 7, ipnt )
-!       tu3d, taut are defined at u/v points..
+!       tu3d, taum are defined at u/v points..
 !       layu is cell-centered (needs interpolation).
 
-        tu3d( ipnt, 1, ilay ) =   taut( ipnt, 1    ) * 0.5_rw &
+        tu3d( ipnt, 1, ilay ) =   taum( ipnt, 1    ) * 0.5_rw &
                               * ( layu( ipnt, ilay )          &
                                 + layu( c__5, ilay ) )
-        tu3d( ipnt, 2, ilay ) =   taut( ipnt, 2    ) * 0.5_rw &
+        tu3d( ipnt, 2, ilay ) =   taum( ipnt, 2    ) * 0.5_rw &
                               * ( layu( ipnt, ilay )          &
                                 + layu( c__7, ilay ) )
 
@@ -2082,6 +2143,8 @@ subroutine distribute_stress()
 !$OMP END PARALLEL DO
     end do
   end if
+
+ ! print *, 'maxtoptu3d and minbottb3d',  maxval(tu3d(:,1,1)), minval(tb3d(:,1,2))
 end subroutine distribute_stress
 
 subroutine first_three_timesteps( tstp )
@@ -2379,7 +2442,7 @@ subroutine update_viscosity( ilay )
   integer, intent( in ) :: ilay
   integer    :: ipnt, c__1, c__2, c__3, c__5, c__6, c__7
   real( rw ) :: r_bl, r_br, r_tr, r_tl, rbll, rbbl, &
-                d_cc, d_ri, d_to, d_le, d_bl, d_bo
+                d_cc, d_ri, d_to, d_le, d_bl, d_bo, hh_q
 
 !$OMP PARALLEL DO SCHEDULE(STATIC) PRIVATE(ipnt,c__1,c__2,c__3,c__5,c__6), &
 !$OMP& PRIVATE(c__7,r_bl,r_br,r_tr,r_tl,rbll,rbbl,d_cc,d_ri,d_to,d_le,d_bl,d_bo)
@@ -2425,9 +2488,11 @@ subroutine update_viscosity( ilay )
                        + bvis 
 !   Biharmonic viscosity.  nu = svis / dl * hlay
 !   See Griffies and Hallberg, 2000, Monthly Weather Review.
-  v_ll( ipnt, ilay ) = v_ll( ipnt, ilay ) + 1/dl* svis / &
-        max((1/2* hlay( ipnt, ilay)+hlay(c__6,ilay)),1._rw) 
-   !  if (v_ll(ipnt,ilay) > 30 .or. v_ll(ipnt,ilay)<5) then
+ ! v_ll( ipnt, ilay ) = v_ll( ipnt, ilay ) + 1/dl* svis / &
+ !       max((1/2* hlay( ipnt, ilay)+hlay(c__6,ilay)),1._rw) 
+
+
+ !  if (v_ll(ipnt,ilay) > 30 .or. v_ll(ipnt,ilay)<5) then
    ! print *, '' , v_ll(ipnt, ilay), subc(ipnt,1), subc(ipnt,2), ilay, hlay(ipnt,ilay)
    ! read(*,*) v_ll(ipnt,ilay)
    ! end if
@@ -2454,15 +2519,43 @@ subroutine update_viscosity( ilay )
     v_cc( ipnt, ilay ) = sqrt( v_cc( ipnt, ilay ) ) * dvis * dl * dl &
                        + bvis
 ! Biharmonic viscosity.               
-if (subc(ipnt,1)<lm .and. subc(ipnt,1)>1 .and. subc(ipnt,2)<mm .and. subc(ipnt,2)>1) then
-    v_cc( ipnt, ilay ) = v_cc( ipnt, ilay ) + svis / (dl*hlay( ipnt, ilay))
+!if (subc(ipnt,1)<lm .and. subc(ipnt,1)>1 .and. subc(ipnt,2)<mm .and. subc(ipnt,2)>1) then
+!    v_cc( ipnt, ilay ) = v_cc( ipnt, ilay ) + svis
+
     !if (v_cc(ipnt,ilay) > 30 .or. v_cc(ipnt,ilay)<5) then
     !print *, '' , v_cc(ipnt, ilay), subc(ipnt,1), subc(ipnt,2), ilay, hlay(ipnt,ilay)
     !read(*,*) v_cc(ipnt,ilay)
     !end if
- end if
+! end if
+     if (svis>0._rw) then
+        v_cc(ipnt, ilay) = v_cc(ipnt, ilay) + svis*mk_n(ipnt)
+        !delu(ipnt,ilay)=(u(c__1,ilay)- 2*u(ipnt,ilay) + u(c__5,ilay) &
+        !        + u(c__3,ilay)-2*u(ipnt,ilay)+u(c__7,ilay) )/dl**2
+        delu(ipnt,ilay) = 2._rw/dl**2 *real((mk_u(c__1)*(u(c__1,ilay) - u(ipnt,ilay)) & 
+                          - mk_u(c__5)*(u(ipnt,ilay) - u(c__5,ilay)))/(mk_u(c__1)+mk_u(c__5)) &
+                          +real(mk_u(c__3)*(u(c__3,ilay) - u(ipnt,ilay)) &
+                          - mk_u(c__7)*(u(ipnt,ilay) - u(c__7,ilay)))/(mk_u(c__3)+mk_u(c__7)))
+        !delv(ipnt,ilay)= (v(c__1,ilay)- 2*v(ipnt,ilay) + v(c__5,ilay) &
+        !        + v(c__3,ilay)-2*v(ipnt,ilay)+v(c__7,ilay) )/dl**2    
+        delv(ipnt,ilay) = 2._rw/dl**2 *real((mk_v(c__1)*(v(c__1,ilay) - v(ipnt,ilay)) &
+                          - mk_v(c__5)*(v(ipnt,ilay) - v(c__5,ilay)))/(mk_v(c__1)+mk_v(c__5)) &
+                          +real(mk_v(c__3)*(v(c__3,ilay) - v(ipnt,ilay)) &
+                          - mk_v(c__7)*(v(ipnt,ilay) - v(c__7,ilay)))/(mk_v(c__3)+mk_v(c__7)))
+        hh_q= real(hlay(ipnt,ilay) +mk_n(c__5)*hlay(c__5,ilay) +mk_n(c__6)*hlay(c__6,ilay) &
+                + mk_n(c__7)*hlay(c__7,ilay))/ (1._rw+mk_n(c__5)+mk_n(c__6)+mk_n(c__7))         
+        UU4(ipnt,ilay)=1._rw/dl*hlay(ipnt,ilay)*(delu(c__1,ilay) &
+                       -delu(ipnt,ilay)-delv(c__3,ilay)+delv(ipnt,ilay)) 
+        VV4(ipnt,ilay)=1._rw/dl*hh_q*(delu(ipnt,ilay)-delu(c__7,ilay)+delv(ipnt,ilay)-delv(c__5,ilay))
 
-   
+!print *,'ipnt:', ipnt,'delu, delv, UU4, VV4', delu(ipnt,ilay), delv(ipnt,ilay), UU4(ipnt,ilay),VV4(ipnt,ilay)
+!read (*,*)
+
+        if (subc(ipnt,1)>=lm .or. subc(ipnt,1)==1 .or. subc(ipnt,2)>=mm .or. subc(ipnt,2)==1) then
+      UU4(ipnt,ilay) = 0._rw
+      VV4(ipnt,ilay) = 0._rw
+         end if 
+
+     end if
   end do
 !$OMP END PARALLEL DO
 end subroutine update_viscosity
