@@ -505,7 +505,7 @@ subroutine get_equilibrium_thickness_h_0( h_2d, h_0 )
 ! convert top layer equilibrium thickness to starting surface pressure	     
 
       pi_s(:)= (sum(h_0(:,:),dim=2)-h_bo(:))*grav
-      !print *, maxval(pi_s)
+
 ! calculate operators Os, Ow, Osum, Osum_ based on h_0	  	  
 	  Ow(:)=0._rw
 	  Os(:)=0._rw
@@ -517,12 +517,11 @@ subroutine get_equilibrium_thickness_h_0( h_2d, h_0 )
 		if (1<subc(ipnt,1) .and. subc(ipnt,1)<lm+1 .and. 1<subc(ipnt,2) .and. subc(ipnt,2)<mm+1) then
                         c__5=neig(5,ipnt)
                         c__7=neig(7,ipnt)
-h_west(ipnt)= 0.5_rw*real( h_bo( ipnt ) + h_bo( c__5 ), rw )
-h_sout(ipnt)= 0.5_rw*real( h_bo( ipnt ) + h_bo( c__7 ), rw )  
-Ow(ipnt)=h_west(ipnt)/dl**2
-Os(ipnt)=h_sout(ipnt)/dl**2
+                        h_west(ipnt)= 0.5_rw*real( h_bo( ipnt ) + h_bo( c__5 ), rw )
+                        h_sout(ipnt)= 0.5_rw*real( h_bo( ipnt ) + h_bo( c__7 ), rw )  
+                        Ow(ipnt)=h_west(ipnt)/dl**2
+                        Os(ipnt)=h_sout(ipnt)/dl**2
 
-		!if (h_2d(subc(ipnt,1), subc(ipnt,2)) > hdry) then
 		elseif (subc(ipnt,1)==1 .and. 1<subc(ipnt,2) .and. subc(ipnt,2)<mm+1) then					
 			c__7=neig(7,ipnt)
 			h_sout(ipnt)= 0.5_rw*real( h_bo( ipnt ) + h_bo( c__7 ), rw )
@@ -1451,34 +1450,21 @@ subroutine update_u( ilay )
            + gamm * dmdx( 2, ipnt, ilay )                             &
            + epsi * dmdx( 1, ipnt, ilay )                             &
            ) * gene
-!if (rhsi>1e-7) then
-!print *,'ipnt is: ', ipnt,'old rhsi: ',rhsi
-!end if
-   if (svis>0._rw) then    
-      rhsi = rhsi -  svis * i_dl* real( UU4(ipnt,ilay)      &
-       - UU4(c__5,ilay) + VV4(c__3,ilay) - VV4(ipnt,ilay))*i__h
-!   print *, 'UU4(1:6)', UU4(1:6,2)
-!print *, 'rhsi', rhsi, ipnt, ilay
-   else   
-       rhsi = rhsi +  ( v_cc( ipnt, ilay ) * dive( ipnt )             &
+
+    if (svis>0._rw) then    
+      rhsi = rhsi -  svis * i_dl* real( UU4(ipnt,ilay)                 &
+          - UU4(c__5,ilay) + VV4(c__3,ilay) - VV4(ipnt,ilay))*i__h
+
+    else   
+      rhsi = rhsi +  ( v_cc( ipnt, ilay ) * dive( ipnt )             &
            - v_cc( c__5, ilay ) * dive( c__5 ) ) * i_dl               &
          - ( v_ll( c__3, ilay ) * rvor( c__3 )                        &
            - v_ll( ipnt, ilay ) * rvor( ipnt ) ) * i_dl               
-   end if
-   !if (rhsi>1e-7) then
-!print *,'ipnt is: ', ipnt,'new rhsi: ', rhsi,  'at i,j: ',subc(ipnt,1), subc(ipnt,2), svis, v_cc(ipnt,ilay)
-!print *, 'UU4 and VV4', UU4(ipnt,ilay), UU4(c__5,ilay), VV4(c__3,ilay), VV4(ipnt,ilay),hcen
-!   read(*,*) 
-!end if
-   uold = uold + rhsi * mask * dt
-    
+    end if
+    uold = uold + rhsi * mask * dt
+     
     uold = ufor *          nudg( ipnt, ix_u )                         &
            + uold * (1._rw - nudg( ipnt, ix_u ))
-
-    !if (ilay > 1.5_rw) then
-    !    uold = ufor *          nudg( ipnt, ix_u )                         &
-    !       + uold * (1._rw - nudg( ipnt, ix_u ))
-    !end if
    
     u( ipnt, ilay ) = uold
 
@@ -1549,26 +1535,22 @@ subroutine update_v( ilay )
            + gamm * dmdy( 2, ipnt, ilay )                             &
            + epsi * dmdy( 1, ipnt, ilay )                             &
            ) * gene
-   if (svis>0._rw) then         
-      rhsi = rhsi -  svis * i_dl* ( VV4(c__1,ilay)       &
+    if (svis>0._rw) then         
+      rhsi = rhsi -  svis * i_dl* ( VV4(c__1,ilay)                    &
        - VV4(ipnt,ilay) - UU4(ipnt,ilay) + UU4(c__7,ilay))*i__h      
 
 
-   else   
-       rhsi = rhsi+ ( v_cc( ipnt, ilay ) * dive( ipnt )             &
+    else   
+       rhsi = rhsi+ ( v_cc( ipnt, ilay ) * dive( ipnt )               &
            - v_cc( c__7, ilay ) * dive( c__7 ) ) * i_dl               &
          + ( v_ll( c__1, ilay ) * rvor( c__1 )                        &
            - v_ll( ipnt, ilay ) * rvor( ipnt ) ) * i_dl               
-   end if
+    end if
    
-   vold = vold + rhsi * mask * dt
+    vold = vold + rhsi * mask * dt
     
     vold = vfor *          nudg( ipnt, ix_v )                         &
             + vold * (1._rw - nudg( ipnt, ix_v ))
-   !if (ilay > 1.5_rw) then
-   !    vold = vfor *          nudg( ipnt, ix_v )                         &
-   !         + vold * (1._rw - nudg( ipnt, ix_v ))
-   ! end if
 
     v( ipnt, ilay ) = vold
 
@@ -1576,10 +1558,10 @@ subroutine update_v( ilay )
 !   See Shchepetkin & McWilliams, 2005, p.394.
 
     if (rgld < 0.5_rw) then
-            h_v( ipnt, ilay ) = 0.5_rw * ( vold + abs( vold ) )      & ! max( v, 0. )
-                                * ( hcen - 0.16667_rw * d2hy( c__7 ) ) &
-                                + 0.5_rw * ( vold - abs( vold ) )      & ! min( v, 0. )
-                                * ( hcen - 0.16667_rw * d2hy( ipnt ) )
+       h_v( ipnt, ilay ) = 0.5_rw * ( vold + abs( vold ) )        & ! max( v, 0. )
+                           * ( hcen - 0.16667_rw * d2hy( c__7 ) ) &
+                           + 0.5_rw * ( vold - abs( vold ) )      & ! min( v, 0. )
+                           * ( hcen - 0.16667_rw * d2hy( ipnt ) )
     end if
 
     dmdy( 1, ipnt, ilay ) = dmdy( 2, ipnt, ilay )
@@ -2475,174 +2457,127 @@ subroutine update_viscosity( ilay )
 !     `v_cc' is defined at Center of Cell.
 !     Units are m**2 s**(-1).
 
-    v_ll( ipnt, ilay ) = ( r_br - r_bl ) * ( r_br - r_bl )     &
-                       + ( r_bl - rbll ) * ( r_bl - rbll )     &
-                       + ( r_tl - r_bl ) * ( r_tl - r_bl )     &
-                       + ( r_bl - rbbl ) * ( r_bl - rbbl )     &
+    v_ll( ipnt, ilay ) = ( r_br - r_bl ) * ( r_br - r_bl )           &
+                       + ( r_bl - rbll ) * ( r_bl - rbll )           &
+                       + ( r_tl - r_bl ) * ( r_tl - r_bl )           &
+                       + ( r_bl - rbbl ) * ( r_bl - rbbl )           &
 !   `Modified Leith viscosity'.
 !   See Fox-Kemper and Menemenlis, 2008, Ocean Modeling in an Eddying Regime,
 !   their Eq.39.
-                       + ( d_cc - d_le ) * ( d_cc - d_le )     &
-                       + ( d_bo - d_bl ) * ( d_bo - d_bl )     &
-                       + ( d_cc - d_bo ) * ( d_cc - d_bo )     &
+                       + ( d_cc - d_le ) * ( d_cc - d_le )           &
+                       + ( d_bo - d_bl ) * ( d_bo - d_bl )           &
+                       + ( d_cc - d_bo ) * ( d_cc - d_bo )           &
                        + ( d_le - d_bl ) * ( d_le - d_bl )
     v_ll( ipnt, ilay ) = sqrt( v_ll( ipnt, ilay ) ) * dvis * dl * dl &
                        + bvis 
 
 !   Leith's viscosity `nu' (1996, Physica D).
-    v_cc( ipnt, ilay ) = ( r_br - r_bl ) * ( r_br - r_bl )     &
-                       + ( r_tr - r_tl ) * ( r_tr - r_tl )     &
-                       + ( r_tl - r_bl ) * ( r_tl - r_bl )     &
-                       + ( r_tr - r_br ) * ( r_tr - r_br )     &
+    v_cc( ipnt, ilay ) = ( r_br - r_bl ) * ( r_br - r_bl )           &
+                       + ( r_tr - r_tl ) * ( r_tr - r_tl )           &
+                       + ( r_tl - r_bl ) * ( r_tl - r_bl )           &
+                       + ( r_tr - r_br ) * ( r_tr - r_br )           &
 !   `Modified Leith viscosity'.
-                       + ( d_ri - d_cc ) * ( d_ri - d_cc )     &
-                       + ( d_cc - d_le ) * ( d_cc - d_le )     &
-                       + ( d_to - d_cc ) * ( d_to - d_cc )     &
+                       + ( d_ri - d_cc ) * ( d_ri - d_cc )           &
+                       + ( d_cc - d_le ) * ( d_cc - d_le )           &
+                       + ( d_to - d_cc ) * ( d_to - d_cc )           &
                        + ( d_cc - d_bo ) * ( d_cc - d_bo )
     v_cc( ipnt, ilay ) = sqrt( v_cc( ipnt, ilay ) ) * dvis * dl * dl &
                        + bvis
 ! Biharmonic viscosity.               
+! Calculated using thickness weighted grad^4(u,v).
+! See Schepetkin and O'Brien '96.
+! First calculate Laplacians of velocity (adding component by component).
 
+    if ( svis > 0._rw ) then
+      delu(ipnt,ilay) = 0._rw
+      delv(ipnt,ilay) = 0._rw
+      
+      if (mk_u(c__1)> 0.5) then
+        delu(ipnt,ilay) = delu(ipnt,ilay) + 2._rw/dl**2 * mk_u(c__1) &
+             *(u(c__1,ilay) - u(ipnt,ilay)) /(mk_u(c__1)+mk_u(c__5))
+      end if
+      
+      if (mk_v(c__1)> 0.5) then
+        delv(ipnt,ilay) = delv(ipnt,ilay) + 2._rw/dl**2 * mk_v(c__1) &
+             *(v(c__1,ilay) - v(ipnt,ilay)) /(mk_v(c__1)+mk_v(c__5))
+      end if
+      
+      if (mk_u(c__5)> 0.5) then
+        delu(ipnt,ilay) = delu(ipnt,ilay) - 2._rw/dl**2 * mk_u(c__5) &
+             *(u(ipnt,ilay) - u(c__5,ilay)) /(mk_u(c__1)+mk_u(c__5))
+      end if
+      
+      if (mk_v(c__5)> 0.5) then
+        delv(ipnt,ilay) = delv(ipnt,ilay) - 2._rw/dl**2 * mk_v(c__5) &
+             *(v(ipnt,ilay) - v(c__5,ilay)) /(mk_v(c__1)+mk_v(c__5))
+      end if
 
-     if ( svis > 0._rw ) then
-         !delu(ipnt,ilay) = 1/dl**2* (u(c__1,ilay) - 2*u(ipnt,ilay)+u(c__5,ilay) + u(c__3,ilay) - 2*u(ipnt,ilay)+u(c__7,ilay))
-         !delv(ipnt,ilay) = 1/dl**2* (v(c__1,ilay) - 2*v(ipnt,ilay)+v(c__5,ilay) + v(c__3,ilay) - 2*v(ipnt,ilay)+v(c__7,ilay))
-         !if (subc(ipnt,1) == 1) then
-         !delu(ipnt,ilay) = 1/dl**2* (2*u(c__1,ilay) - 2*u(ipnt,ilay) + u(c__3,ilay) - 2*u(ipnt,ilay)+u(c__7,ilay))
-         !delv(ipnt,ilay) = 1/dl**2* (2*v(c__1,ilay) - 2*v(ipnt,ilay) + v(c__3,ilay) - 2*v(ipnt,ilay)+v(c__7,ilay))
-         !elseif (subc(ipnt,1) ==lm) then
-         !delu(ipnt,ilay) = 1/dl**2* (- 2*u(ipnt,ilay)+2*u(c__5,ilay) + u(c__3,ilay) - 2*u(ipnt,ilay)+u(c__7,ilay))
-         !delv(ipnt,ilay) = 1/dl**2* (- 2*v(ipnt,ilay)+2*v(c__5,ilay) + v(c__3,ilay) - 2*v(ipnt,ilay)+v(c__7,ilay))
-         !elseif (subc(ipnt,2) ==1) then
-         !delu(ipnt,ilay) = 1/dl**2* (u(c__1,ilay) - 2*u(ipnt,ilay)+u(c__5,ilay) + 2*u(c__3,ilay) - 2*u(ipnt,ilay))
-         !delv(ipnt,ilay) = 1/dl**2* (v(c__1,ilay) - 2*v(ipnt,ilay)+v(c__5,ilay) + 2*v(c__3,ilay) - 2*v(ipnt,ilay))
-         !elseif (subc(ipnt,2) == mm) then
-         !delu(ipnt,ilay) = 1/dl**2* (u(c__1,ilay) - 2*u(ipnt,ilay)+u(c__5,ilay) - 2*u(ipnt,ilay)+2*u(c__7,ilay))
-         !delv(ipnt,ilay) = 1/dl**2* (v(c__1,ilay) - 2*v(ipnt,ilay)+v(c__5,ilay)  -2*v(ipnt,ilay)+2*v(c__7,ilay))
-         !end if
-!print *, 'delin', delu(ipnt,2), ipnt
-        delu(ipnt,ilay) = 0._rw
-        delv(ipnt,ilay) = 0._rw
-        if (mk_u(c__1)> 0.5) then
-        delu(ipnt,ilay) = delu(ipnt,ilay) + 2._rw/dl**2 * mk_u(c__1)*(u(c__1,ilay) - u(ipnt,ilay)) /(mk_u(c__1)+mk_u(c__5))
-!print *, 'delu2', delu(ipnt,2), ipnt
-        end if
-        if (mk_v(c__1)> 0.5) then
-        delv(ipnt,ilay) = delv(ipnt,ilay) + 2._rw/dl**2 * mk_v(c__1)*(v(c__1,ilay) - v(ipnt,ilay)) /(mk_v(c__1)+mk_v(c__5))
-        end if
-        if (mk_u(c__5)> 0.5) then
-        delu(ipnt,ilay) = delu(ipnt,ilay) - 2._rw/dl**2 * mk_u(c__5)*(u(ipnt,ilay) - u(c__5,ilay)) /(mk_u(c__1)+mk_u(c__5))
-!print *, 'delu2', delu(ipnt,2), ipnt
-        end if
-        if (mk_v(c__5)> 0.5) then
-        delv(ipnt,ilay) = delv(ipnt,ilay) - 2._rw/dl**2 * mk_v(c__5)*(v(ipnt,ilay) - v(c__5,ilay)) /(mk_v(c__1)+mk_v(c__5))
-        end if
-        if (mk_u(c__3)> 0.5) then
-        delu(ipnt,ilay) = delu(ipnt,ilay) + 2._rw/dl**2 * mk_u(c__3)*(u(c__3,ilay) - u(ipnt,ilay)) /(mk_u(c__3)+mk_u(c__7))
-!print *, 'delu3', delu(ipnt,2), ipnt
-        end if
-        if (mk_v(c__3)> 0.5) then
-        delv(ipnt,ilay) = delv(ipnt,ilay) + 2._rw/dl**2 * mk_v(c__3)*(v(c__3,ilay) - v(ipnt,ilay)) /(mk_v(c__3)+mk_v(c__7))
-        end if
-        if (mk_u(c__7)> 0.5) then
-        delu(ipnt,ilay) = delu(ipnt,ilay) - 2._rw/dl**2 * mk_u(c__7)*(u(ipnt,ilay) - u(c__7,ilay)) /(mk_u(c__3)+mk_u(c__7))
-!print *, 'delu4', delu(ipnt,2), ipnt
-        end if
-        if (mk_v(c__7)> 0.5) then
-        delv(ipnt,ilay) = delv(ipnt,ilay) - 2._rw/dl**2 * mk_v(c__7)*(v(ipnt,ilay) - v(c__7,ilay)) /(mk_v(c__3)+mk_v(c__7))
-        end if
+      if (mk_u(c__3)> 0.5) then
+        delu(ipnt,ilay) = delu(ipnt,ilay) + 2._rw/dl**2 * mk_u(c__3) &
+             *(u(c__3,ilay) - u(ipnt,ilay)) /(mk_u(c__3)+mk_u(c__7))
+      end if
+      
+      if (mk_v(c__3)> 0.5) then
+        delv(ipnt,ilay) = delv(ipnt,ilay) + 2._rw/dl**2 * mk_v(c__3) &
+             *(v(c__3,ilay) - v(ipnt,ilay)) /(mk_v(c__3)+mk_v(c__7))
+      end if
+        
+      if (mk_u(c__7)> 0.5) then
+        delu(ipnt,ilay) = delu(ipnt,ilay) - 2._rw/dl**2 * mk_u(c__7) &
+             *(u(ipnt,ilay) - u(c__7,ilay)) /(mk_u(c__3)+mk_u(c__7))
+      end if
+        
+      if (mk_v(c__7)> 0.5) then
+        delv(ipnt,ilay) = delv(ipnt,ilay) - 2._rw/dl**2 * mk_v(c__7) &
+             *(v(ipnt,ilay) - v(c__7,ilay)) /(mk_v(c__3)+mk_v(c__7))
+      end if
        
-        !delu(ipnt,ilay) = 2._rw/dl**2 *real((mk_u(c__1)*(u(c__1,ilay) - u(ipnt,ilay)) & 
-        !                  - mk_u(c__5)*(u(ipnt,ilay) - u(c__5,ilay)))/(mk_u(c__1)+mk_u(c__5)) &
-        !                  + (mk_u(c__3)*(u(c__3,ilay) - u(ipnt,ilay)) &
-        !                  - mk_u(c__7)*(u(ipnt,ilay) - u(c__7,ilay)))/(mk_u(c__3)+mk_u(c__7)))   
-        !delv(ipnt,ilay) = 2._rw/dl**2 *real((mk_v(c__1)*(v(c__1,ilay) - v(ipnt,ilay)) &
-        !                  - mk_v(c__5)*(v(ipnt,ilay) - v(c__5,ilay)))/(mk_v(c__1)+mk_v(c__5)) &
-        !                  + (mk_v(c__3)*(v(c__3,ilay) - v(ipnt,ilay)) &
-        !                  - mk_v(c__7)*(v(ipnt,ilay) - v(c__7,ilay)))/(mk_v(c__3)+mk_v(c__7)))        
-   
-        !UU4(ipnt,ilay)=1._rw/dl*hlay(ipnt,ilay)*(delu(c__1,ilay) &
-        !               -delu(ipnt,ilay)-delv(c__3,ilay)+delv(ipnt,ilay)) 
-        !VV4(ipnt,ilay)=1._rw/dl*hh_q*(delu(ipnt,ilay)-delu(c__7,ilay)+delv(ipnt,ilay)-delv(c__5,ilay))
-
-!print *,'ipnt:', ipnt,'delu, delv, UU4, VV4', delu(ipnt,ilay), delv(ipnt,ilay), UU4(ipnt,ilay),VV4(ipnt,ilay)
-!read (*,*)
-
-       ! if (subc(ipnt,1)>=lm-1 .or. subc(ipnt,1)==1 .or. subc(ipnt,2)>=mm-1 .or. subc(ipnt,2)==1) then
-      !UU4(ipnt,ilay) = 0._rw
-      !VV4(ipnt,ilay) = 0._rw
-      !   end if 
-
-
      end if
   end do
 
 !$OMP END PARALLEL DO
-if (svis > 0._rw ) then
-  do ipnt = 1, ndeg
-    c__1 = neig( 1, ipnt )
-    c__3 = neig( 3, ipnt )
-    c__5 = neig( 5, ipnt )
-    c__6 = neig( 6, ipnt )
-    c__7 = neig( 7, ipnt )
+
+! Calculate thickness weighted grad^4(u,v) using delu and delv.
+  if (svis > 0._rw ) then
+    do ipnt = 1, ndeg
+        c__1 = neig( 1, ipnt )
+        c__3 = neig( 3, ipnt )
+        c__5 = neig( 5, ipnt )
+        c__6 = neig( 6, ipnt )
+        c__7 = neig( 7, ipnt )
         UU4(ipnt,ilay) = 0._rw
         VV4(ipnt,ilay) = 0._rw
-hh_q= real(hlay(ipnt,ilay) +mk_n(c__5)*hlay(c__5,ilay) +mk_n(c__6)*hlay(c__6,ilay) &
-                + mk_n(c__7)*hlay(c__7,ilay))/ (1._rw+mk_n(c__5)+mk_n(c__6)+mk_n(c__7)) 
+        hh_q= real(hlay(ipnt,ilay) +mk_n(c__5)*hlay(c__5,ilay)             &
+              +mk_n(c__6)*hlay(c__6,ilay) + mk_n(c__7)*hlay(c__7,ilay))    &
+              / (1._rw+mk_n(c__5)+mk_n(c__6)+mk_n(c__7)) 
 
-        UU4(ipnt,ilay)=UU4(ipnt,ilay)-1._rw/dl*hlay(ipnt,ilay)*delu(ipnt,ilay)+1._rw/dl*hlay(ipnt,ilay)*delv(ipnt,ilay)
-        VV4(ipnt,ilay)=VV4(ipnt,ilay)+1._rw/dl*hh_q*delu(ipnt,ilay)+1._rw/dl*hh_q*delv(ipnt,ilay)
+        UU4(ipnt,ilay)=UU4(ipnt,ilay)-1._rw/dl*hlay(ipnt,ilay)             &
+                  *delu(ipnt,ilay)+1._rw/dl*hlay(ipnt,ilay)*delv(ipnt,ilay)
+        VV4(ipnt,ilay)=VV4(ipnt,ilay)+1._rw/dl*hh_q*delu(ipnt,ilay)        &
+                  +1._rw/dl*hh_q*delv(ipnt,ilay)
 
-!print *, 'in___', VV4(ipnt,2), ipnt, hh_q, delu(ipnt,ilay), delv(ipnt,ilay)
-
- 
-        !UU4(ipnt,ilay)=UU4(ipnt,ilay)+1._rw/dl*hlay(ipnt,ilay)*delv(ipnt,ilay)
-        !VV4(ipnt,ilay)=VV4(ipnt,ilay)+delv(ipnt,ilay)
-
-!print *, 'initl', UU4(ipnt,2), ipnt
         if (subc(ipnt,1)<=lm) then!if (mk_u(c__1)> 0.5) then
-        UU4(ipnt,ilay) = UU4(ipnt,ilay) +  1._rw/dl*hlay(ipnt,ilay)*delu(c__1,ilay)
-!print *, 'mk1  ', UU4(ipnt,2), ipnt, mk_u(c__1)
+          UU4(ipnt,ilay) = UU4(ipnt,ilay) +  1._rw/dl                      &
+                           *hlay(ipnt,ilay)*delu(c__1,ilay)
         end if
         if (subc(ipnt,2)<=mm) then !if (mk_v(c__3)> 0.5) then
-        UU4(ipnt,ilay) = UU4(ipnt,ilay) - 1._rw/dl*hlay(ipnt,ilay)*delv(c__3,ilay)
-!print *, 'mk3  ', UU4(ipnt,2), ipnt, mk_v(c__3)
+          UU4(ipnt,ilay) = UU4(ipnt,ilay) - 1._rw/dl                       &
+                           *hlay(ipnt,ilay)*delv(c__3,ilay)
         end if
         if (subc(ipnt,1)>1) then !if (mk_v(c__5)> 0.5) then
-        VV4(ipnt,ilay) = VV4(ipnt,ilay) - 1._rw/dl*hh_q*delv(c__5,ilay)
-!print *, 'mk5  ', VV4(ipnt,2), ipnt, mk_v(c__5)
+          VV4(ipnt,ilay) = VV4(ipnt,ilay) - 1._rw/dl*hh_q*delv(c__5,ilay)
         end if
         if (subc(ipnt,2)>1) then !if (mk_u(c__7)> 0.5) then
-        VV4(ipnt,ilay) = VV4(ipnt,ilay) -  1._rw/dl*hh_q*delu(c__7,ilay)
-!print *, 'mk7  ', VV4(ipnt,2), ipnt, mk_u(c__7)
+          VV4(ipnt,ilay) = VV4(ipnt,ilay) -  1._rw/dl*hh_q*delu(c__7,ilay)
         end if
-
-!UU4(ipnt,ilay)=(delu(c__1,ilay) &
-!                       -delu(ipnt,ilay)-delv(c__3,ilay)+delv(ipnt,ilay)) 
-
-
-        !UU4(ipnt,ilay)=1._rw/dl*hlay(ipnt,ilay)*UU4(ipnt,ilay)
-!print *, 'final', UU4(ipnt,ilay), ipnt
-        !VV4(ipnt,ilay)=(delu(ipnt,ilay)-delu(c__7,ilay)+delv(ipnt,ilay)-delv(c__5,ilay))
-        !VV4(ipnt,ilay)=1._rw/dl*hh_q*VV4(ipnt,ilay)
-!print *, 'final', VV4(ipnt,2), ipnt
     
-    if (subc(ipnt,1)==lm+1 .or. subc(ipnt,1)==1 .or. subc(ipnt,2)==mm+1 .or. subc(ipnt,2)==1) then
-      VV4(ipnt,ilay) = 0._rw
-    end if 
-  end do
-end if
+        if (subc(ipnt,1)==lm+1 .or. subc(ipnt,1)==1 .or.                   &
+                       subc(ipnt,2)==mm+1 .or. subc(ipnt,2)==1) then
+          VV4(ipnt,ilay) = 0._rw
+        end if 
+    end do
+  end if
 
-!print *, 'UU4(1:6)', UU4(1:6,2)
-!print *, 'UU4(7:12)',UU4(7:12,2)
-!print *, 'UU4(13:18)',UU4(13:18,2)
-!print *, 'UU4(19:24)',UU4(19:24,2)
-!print *, 'UU4(25:30)',UU4(25:30,2)
-!print *, 'UU4(31:36)', UU4(31:36,2)
-
-
-
-!read (*,*)
 end subroutine update_viscosity
 
 subroutine no_gradient_obc( ilay )
