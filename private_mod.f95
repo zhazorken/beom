@@ -2492,44 +2492,20 @@ subroutine update_viscosity( ilay )
       delu(ipnt,ilay) = 0._rw
       delv(ipnt,ilay) = 0._rw
       
-      if (mk_u(c__1)> 0.5) then
-        delu(ipnt,ilay) = delu(ipnt,ilay) + 2._rw/dl**2 * mk_u(c__1) &
-             *(u(c__1,ilay) - u(ipnt,ilay)) /(mk_u(c__1)+mk_u(c__5))
+      if (mk_u(c__1)> 0.5 .and. mk_u(c__5)> 0.5) then
+        delu(ipnt,ilay) = delu(ipnt,ilay) + 1._rw/dl**2 * (u(c__1,ilay) - 2*u(ipnt,ilay) + u(c__5, ilay))
       end if
       
-      if (mk_v(c__1)> 0.5) then
-        delv(ipnt,ilay) = delv(ipnt,ilay) + 2._rw/dl**2 * mk_v(c__1) &
-             *(v(c__1,ilay) - v(ipnt,ilay)) /(mk_v(c__1)+mk_v(c__5))
+      if (mk_v(c__1)> 0.5 .and. mk_v(c__5)> 0.5) then
+        delv(ipnt,ilay) = delv(ipnt,ilay) + 1._rw/dl**2 * (v(c__1,ilay) - 2*v(ipnt,ilay) + v(c__5, ilay))
       end if
       
-      if (mk_u(c__5)> 0.5) then
-        delu(ipnt,ilay) = delu(ipnt,ilay) - 2._rw/dl**2 * mk_u(c__5) &
-             *(u(ipnt,ilay) - u(c__5,ilay)) /(mk_u(c__1)+mk_u(c__5))
+      if (mk_u(c__3)> 0.5 .and. mk_u(c__7)> 0.5) then
+        delu(ipnt,ilay) = delu(ipnt,ilay) + 1._rw/dl**2 * (u(c__3,ilay) - 2*u(ipnt,ilay) + u(c__7, ilay))
       end if
       
-      if (mk_v(c__5)> 0.5) then
-        delv(ipnt,ilay) = delv(ipnt,ilay) - 2._rw/dl**2 * mk_v(c__5) &
-             *(v(ipnt,ilay) - v(c__5,ilay)) /(mk_v(c__1)+mk_v(c__5))
-      end if
-
-      if (mk_u(c__3)> 0.5) then
-        delu(ipnt,ilay) = delu(ipnt,ilay) + 2._rw/dl**2 * mk_u(c__3) &
-             *(u(c__3,ilay) - u(ipnt,ilay)) /(mk_u(c__3)+mk_u(c__7))
-      end if
-      
-      if (mk_v(c__3)> 0.5) then
-        delv(ipnt,ilay) = delv(ipnt,ilay) + 2._rw/dl**2 * mk_v(c__3) &
-             *(v(c__3,ilay) - v(ipnt,ilay)) /(mk_v(c__3)+mk_v(c__7))
-      end if
-        
-      if (mk_u(c__7)> 0.5) then
-        delu(ipnt,ilay) = delu(ipnt,ilay) - 2._rw/dl**2 * mk_u(c__7) &
-             *(u(ipnt,ilay) - u(c__7,ilay)) /(mk_u(c__3)+mk_u(c__7))
-      end if
-        
-      if (mk_v(c__7)> 0.5) then
-        delv(ipnt,ilay) = delv(ipnt,ilay) - 2._rw/dl**2 * mk_v(c__7) &
-             *(v(ipnt,ilay) - v(c__7,ilay)) /(mk_v(c__3)+mk_v(c__7))
+      if (mk_v(c__3)> 0.5 .and. mk_v(c__7)> 0.5) then
+        delv(ipnt,ilay) = delv(ipnt,ilay) + 1._rw/dl**2 * (v(c__3,ilay) - 2*v(ipnt,ilay) + v(c__7, ilay))
       end if
        
      end if
