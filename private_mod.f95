@@ -61,6 +61,7 @@ module private_mod
     d2hy(0 : ndeg      ), & ! Correction term for upstream-biased scheme.
     h_bo(0 : ndeg      ), &    ! Bottom topography (meters, >0).
     h_to(0 : ndeg      ), &   ! Surface topography (meters, >0).
+    h_th(0 : ndeg      ), &   ! Water column thickness (meters, >0).
     Ow(  0 : ndeg      ) = 0._rw,&
     Os(  0 : ndeg      ) = 0._rw,&
     Osum_(0: ndeg     ) = 0._rw
@@ -283,6 +284,7 @@ subroutine initialize_variables()
   d2hy(:      ) = 0._rw
   h_bo(:      ) = 0._rw
   h_to(:      ) = 0._rw
+  h_th(:      ) = 0._rw
   Ow(  :      ) = 0._rw
   Os(  :      ) = 0._rw
   Osum_(:     ) = 0._rw
@@ -504,7 +506,7 @@ subroutine get_equilibrium_thickness_h_0( h_2d, h_0 )
 	   
 ! convert top layer equilibrium thickness to starting surface pressure	     
 
-      pi_s(:)= (sum(h_0(:,:),dim=2)-h_bo(:))*grav
+      pi_s(:)= (sum(h_0(:,:),dim=2)-h_th(:))*grav
 
 ! calculate operators Os, Ow, Osum, Osum_ based on h_0	  	  
 	  Ow(:)=0._rw
@@ -517,19 +519,19 @@ subroutine get_equilibrium_thickness_h_0( h_2d, h_0 )
 		if (1<subc(ipnt,1) .and. subc(ipnt,1)<lm+1 .and. 1<subc(ipnt,2) .and. subc(ipnt,2)<mm+1) then
                         c__5=neig(5,ipnt)
                         c__7=neig(7,ipnt)
-                        h_west(ipnt)= 0.5_rw*real( h_bo( ipnt ) + h_bo( c__5 ), rw )
-                        h_sout(ipnt)= 0.5_rw*real( h_bo( ipnt ) + h_bo( c__7 ), rw )  
+                        h_west(ipnt)= 0.5_rw*real( h_th( ipnt ) + h_th( c__5 ), rw )
+                        h_sout(ipnt)= 0.5_rw*real( h_th( ipnt ) + h_th( c__7 ), rw )  
                         Ow(ipnt)=h_west(ipnt)/dl**2
                         Os(ipnt)=h_sout(ipnt)/dl**2
 
 		elseif (subc(ipnt,1)==1 .and. 1<subc(ipnt,2) .and. subc(ipnt,2)<mm+1) then					
 			c__7=neig(7,ipnt)
-			h_sout(ipnt)= 0.5_rw*real( h_bo( ipnt ) + h_bo( c__7 ), rw )
+			h_sout(ipnt)= 0.5_rw*real( h_th( ipnt ) + h_th( c__7 ), rw )
 			Ow(ipnt)=0._rw
 			Os(ipnt)=h_sout(ipnt)/dl**2
 		elseif (1<subc(ipnt,1) .and. subc(ipnt,1)<lm+1 .and. subc(ipnt,2)==1) then	
 			c__5=neig(5,ipnt)
-                        h_west(ipnt)=0.5_rw*real( h_bo( ipnt ) + h_bo( c__5 ), rw )
+                        h_west(ipnt)=0.5_rw*real( h_th( ipnt ) + h_th( c__5 ), rw )
                         Ow(ipnt)=h_west(ipnt)/dl**2
                         Os(ipnt)=0._rw
 
@@ -746,13 +748,13 @@ subroutine index_grid_points( h_2d )
   close( unit = unum )
   deallocate( ioi4  )
 
-! Store the bathymetric grid in indexed format.
+! Store the bathymetric and top topography grid in indexed format.
 
   do i_c = 0, ndeg
     i           = subc( i_c, 1 )
     j           = subc( i_c, 2 )
-    h_bo( i_c ) = h_2d( i,   j )
-  end do
+    h_th( i_c ) = h_2d( i,   j )
+  end do  
 
   if ( errc == 0 ) then
     errm = errm( 1 : lerm )
@@ -767,7 +769,7 @@ subroutine read_input_file( keyw, h_2d )
   real   (rw),  intent(inout), optional :: h_2d( - 1 : lm + 2, - 1 : mm + 2 )
   logical                               :: is_e
   integer                               :: lrec, unum, i, j, ilay, ipnt
-  real   (r4),  allocatable             :: ior4(:,:), ior4_3d(:,:,:), &
+  real   (r4),  allocatable             :: ior4(:,:), ior4_(:,:), ior4_3d(:,:,:), &
                                            ior4_4d(:,:,:,:), ior4_5d(:,:,:,:,:)
 
   inquire( iostat = errc, exist = is_e, file = trim(idir) // keyw // '.bin' )
@@ -775,6 +777,10 @@ subroutine read_input_file( keyw, h_2d )
   if     ( keyw == 'h_bo' .or. keyw == 'fcor' ) then
     allocate( ior4   ( 0 : lm + 1, 0 : mm + 1 ) )
     inquire( iolength = lrec ) ior4(:,:)
+    if (topt > 0.5) then
+      allocate ( ior4_ ( 0: lm + 1, 0 : mm + 1 ) )
+      inquire(iolength = lrec ) ior4_(:,:)
+    end if
   elseif ( keyw == 'nudg' ) then
     allocate( ior4_3d( 0 : lm + 1, 0 : mm + 1, 3 ) )
     inquire( iolength = lrec ) ior4_3d(:,:,:)
@@ -800,6 +806,12 @@ subroutine read_input_file( keyw, h_2d )
         file = trim( idir ) // keyw // '.bin' )
   if     ( keyw == 'h_bo' .or. keyw == 'fcor' .or. keyw == 'bodf' ) then
     read( unit = unum, iostat = errc, rec = 1 ) ior4(:,:)
+    if (topt>0.5) then
+      open( unit = unum, status = 'old',    iostat = errc, action = 'read', &
+        recl = lrec, access = 'direct', form   = 'unformatted',         &
+        file = trim( idir ) // 'h_to.bin' )
+      read( unit = unum, iostat = errc, rec = 1 ) ior4_(:,:)
+    end if
   elseif ( keyw == 'init'                                         ) then
     read( unit = unum, iostat = errc, rec = 1 ) ior4_4d(:,:,:,:)
   elseif ( keyw == 'hdot' .or. keyw == 'taus' .or. keyw == 'nudg' ) then
@@ -815,6 +827,10 @@ subroutine read_input_file( keyw, h_2d )
   if     ( keyw == 'h_bo' ) then
     h_2d(  :,          :       ) = 0._rw
     h_2d(0 : lm + 1, 0 : mm + 1) = real( ior4, rw )
+    if (topt > 0.5) then
+      h_2d(0 : lm + 1, 0 : mm + 1) = real( ior4 - ior4_, rw )
+      deallocate( ior4_)
+    end if
     deallocate( ior4 )
     where( h_2d(:,:) < hdry ) h_2d(:,:) = 0._rw
     h_2d(     0,      :) = 0._rw ! Enforce margins of dry cells.
@@ -1270,6 +1286,7 @@ subroutine save_metadata()
       write(unit = unum, fmt = *) 'diag           = ',  diag,            ';'
       write(unit = unum, fmt = *) 'rgld           = ',  rgld,            ';'
       write(unit = unum, fmt = *) 'mcbc           = ',  mcbc,            ';'
+      write(unit = unum, fmt = *) 'topt           = ',  topt,            ';'
       write(unit = unum, fmt = *) 'idir           = ', '''',              &
                                                   trim( idir ), '''',    ';'
       write(unit = unum, fmt = *) 'desc           = ', '''',              &
@@ -1633,8 +1650,8 @@ subroutine update_h()
 
           !tiny correction to top layer to ensure sum of layers is htop-hbot to machine precision
 
-          hlay(ipnt, 1) = hlay(ipnt,1)-0.5*real(sum(hlay(ipnt,:)) - real(h_bo(ipnt),r8))
-          hlay(ipnt, 2) = hlay(ipnt,2)-0.5*real(sum(hlay(ipnt,:)) - real(h_bo(ipnt),r8))
+          hlay(ipnt, 1) = hlay(ipnt,1)-0.5*real(sum(hlay(ipnt,:)) - real((h_th(ipnt)),r8))
+          hlay(ipnt, 2) = hlay(ipnt,2)-0.5*real(sum(hlay(ipnt,:)) - real((h_th(ipnt)),r8))
 
 !if (ipnt == 50) then
 !print *, hlay(50,1)
@@ -1672,10 +1689,10 @@ subroutine update_h()
                !     hlay(ipnt, ilay) = hlay(ipnt,ilay) - hlay(ipnt,ilay)/real(sum(hlay(ipnt,:)))   &
                !			*real(sum(hlay(ipnt,:)) - real(h_bo(ipnt),r8))
                !end do
-               if (sum(real(hlay(ipnt, :),r8)) > h_bo(ipnt)) then
+               if (sum(real(hlay(ipnt, :),r8)) > h_th(ipnt)) then
                        errm = trim(errm) //' The water column depth is greater than htop-hbot\n '//  &
                                'from module private_mod.f95,'
-               elseif (sum(real(hlay(ipnt, :),r8)) < h_bo(ipnt)) then
+               elseif (sum(real(hlay(ipnt, :),r8)) < h_th(ipnt)) then
                        errm = trim(errm) //' The water column depth is less than htop-hbot\n '//  &
                                'from module private_mod.f95,'        
                end if
@@ -2353,7 +2370,7 @@ subroutine update_mont_rvor_pvor_dive_kine( ilay )
          hcol = hcol + hlay( ipnt, i )
       end do
 
-      mpot = hcol - real( h_bo( ipnt ), r8 ) + mpot
+      mpot = hcol - real( h_th(ipnt), r8 ) + mpot
 
     end if
 !   4- Kinetic energy (Montgomery potential becomes Bernoulli potential).
@@ -2894,7 +2911,7 @@ subroutine write_array( var, irec, is_init )
         end do
         ior4(ipnt, ilay) = ior4(ipnt, ilay)                              &
                          + real( sum(       hlay( ipnt, : )       )      &
-                                    - real( h_bo( ipnt    ), r8 ), r4 )
+                                    - real( h_th(ipnt), r8 ), r4 )
       end do
 !$OMP END PARALLEL DO
     end do
