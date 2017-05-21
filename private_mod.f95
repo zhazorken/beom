@@ -1692,7 +1692,7 @@ subroutine surf_pressure()
   logical     :: hasConverged
   
   pi_rhs(: ) = 0._rw
-  rp=1.900
+  rp=1.000
   iters=0
   diff=0
   hasConverged=.true.
@@ -2487,25 +2487,29 @@ subroutine update_viscosity( ilay )
 ! Calculated using thickness weighted grad^4(u,v).
 ! See Schepetkin and O'Brien '96.
 ! First calculate Laplacians of velocity (adding component by component).
-
+! Laplacian component is 0 in direction of boundary.
     if ( svis > 0._rw ) then
       delu(ipnt,ilay) = 0._rw
       delv(ipnt,ilay) = 0._rw
       
-      if (mk_u(c__1)> 0.5 .and. mk_u(c__5)> 0.5) then
-        delu(ipnt,ilay) = delu(ipnt,ilay) + 1._rw/dl**2 * (u(c__1,ilay) - 2*u(ipnt,ilay) + u(c__5, ilay))
+      if (mk_u(ipnt) > 0.5) then !not west or east bdy
+        delu(ipnt,ilay) = delu(ipnt,ilay) + 1._rw/dl**2 * (u(c__1,ilay) - 2*u(ipnt,ilay) + u(c__5,ilay))
+        delv(ipnt,ilay) = delv(ipnt,ilay) + 1._rw/dl**2 * (v(c__1,ilay) - 2*v(ipnt,ilay) + v(c__5,ilay))
+        if (mk_v(ipnt) < 0.5 .and. mk_n(ipnt) > 0.5) then ! if south
+          delu(ipnt,ilay) = delu(ipnt,ilay) + 1._rw/dl**2 * (u(c__3,ilay) - u(ipnt,ilay))
+        elseif (mk_v(ipnt) < 0.5 .and. mk_n(ipnt) < 0.5) then ! if north
+          delu(ipnt,ilay) = delu(ipnt,ilay) + 1._rw/dl**2 * (-u(ipnt,ilay) + u(c__7,ilay))
+        end if
       end if
-      
-      if (mk_v(c__1)> 0.5 .and. mk_v(c__5)> 0.5) then
-        delv(ipnt,ilay) = delv(ipnt,ilay) + 1._rw/dl**2 * (v(c__1,ilay) - 2*v(ipnt,ilay) + v(c__5, ilay))
-      end if
-      
-      if (mk_u(c__3)> 0.5 .and. mk_u(c__7)> 0.5) then
-        delu(ipnt,ilay) = delu(ipnt,ilay) + 1._rw/dl**2 * (u(c__3,ilay) - 2*u(ipnt,ilay) + u(c__7, ilay))
-      end if
-      
-      if (mk_v(c__3)> 0.5 .and. mk_v(c__7)> 0.5) then
-        delv(ipnt,ilay) = delv(ipnt,ilay) + 1._rw/dl**2 * (v(c__3,ilay) - 2*v(ipnt,ilay) + v(c__7, ilay))
+
+      if (mk_v(ipnt) > 0.5) then !not north or south bdy
+        delu(ipnt,ilay) = delu(ipnt,ilay) + 1._rw/dl**2 * (u(c__3,ilay) - 2*u(ipnt,ilay) + u(c__7,ilay))
+        delv(ipnt,ilay) = delv(ipnt,ilay) + 1._rw/dl**2 * (v(c__3,ilay) - 2*v(ipnt,ilay) + v(c__7,ilay))
+        if (mk_u(ipnt) < 0.5 .and. mk_n(ipnt) > 0.5) then ! if west
+          delv(ipnt,ilay) = delv(ipnt,ilay) + 1._rw/dl**2 * (v(c__1,ilay) - v(ipnt,ilay))
+        elseif (mk_u(ipnt) < 0.5 .and. mk_n(ipnt) < 0.5) then ! if east
+          delv(ipnt,ilay) = delv(ipnt,ilay) + 1._rw/dl**2 * (-v(ipnt,ilay) + v(c__5,ilay))
+        end if
       end if
        
      end if
