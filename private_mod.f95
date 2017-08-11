@@ -2353,7 +2353,7 @@ subroutine update_mont_rvor_pvor_dive_kine( ilay )
     mpot = mpot * real( - ocrp * i_ns * hsal * mk_n( ipnt ), r8 )
 
 !   2- Baroclinic contribution.
-
+ mpot=mpot-h_to(ipnt)
     do i = 1, ilay - 1
       mpot = mpot                                                &
            - real( rhon( ilay ) - rhon( i ), r8 ) * i_rn( ilay ) &
@@ -2509,26 +2509,44 @@ subroutine update_viscosity( ilay )
       delu(ipnt,ilay) = 0._rw
       delv(ipnt,ilay) = 0._rw
       
-      if (mk_u(ipnt) > 0.5) then !not west or east bdy
-        delu(ipnt,ilay) = delu(ipnt,ilay) + 1._rw/dl**2 * (u(c__1,ilay) - 2*u(ipnt,ilay) + u(c__5,ilay))
-        delv(ipnt,ilay) = delv(ipnt,ilay) + 1._rw/dl**2 * (v(c__1,ilay) - 2*v(ipnt,ilay) + v(c__5,ilay))
-        if (mk_v(ipnt) < 0.5 .and. mk_n(ipnt) > 0.5) then ! if south
-          delu(ipnt,ilay) = delu(ipnt,ilay) + 1._rw/dl**2 * (u(c__3,ilay) - u(ipnt,ilay))
-        elseif (mk_v(ipnt) < 0.5 .and. mk_n(ipnt) < 0.5) then ! if north
-          delu(ipnt,ilay) = delu(ipnt,ilay) + 1._rw/dl**2 * (-u(ipnt,ilay) + u(c__7,ilay))
-        end if
-      end if
+   !   if (mk_u(ipnt) > 0.5) then !not west or east bdy
+   !     delu(ipnt,ilay) = delu(ipnt,ilay) + 1._rw/dl**2 * (u(c__1,ilay) - 2*u(ipnt,ilay) + u(c__5,ilay))
+   !     delv(ipnt,ilay) = delv(ipnt,ilay) + 1._rw/dl**2 * (v(c__1,ilay) - 2*v(ipnt,ilay) + v(c__5,ilay))
+   !     if (mk_v(ipnt) < 0.5 .and. mk_n(ipnt) > 0.5) then ! if south
+   !       delu(ipnt,ilay) = delu(ipnt,ilay) + 1._rw/dl**2 * (u(c__3,ilay) - u(ipnt,ilay))
+   !     elseif (mk_v(ipnt) < 0.5 .and. mk_n(ipnt) < 0.5) then ! if north
+   !       delu(ipnt,ilay) = delu(ipnt,ilay) + 1._rw/dl**2 * (-u(ipnt,ilay) + u(c__7,ilay))
+   !     end if
+   !   end if
 
-      if (mk_v(ipnt) > 0.5) then !not north or south bdy
-        delu(ipnt,ilay) = delu(ipnt,ilay) + 1._rw/dl**2 * (u(c__3,ilay) - 2*u(ipnt,ilay) + u(c__7,ilay))
-        delv(ipnt,ilay) = delv(ipnt,ilay) + 1._rw/dl**2 * (v(c__3,ilay) - 2*v(ipnt,ilay) + v(c__7,ilay))
-        if (mk_u(ipnt) < 0.5 .and. mk_n(ipnt) > 0.5) then ! if west
-          delv(ipnt,ilay) = delv(ipnt,ilay) + 1._rw/dl**2 * (v(c__1,ilay) - v(ipnt,ilay))
-        elseif (mk_u(ipnt) < 0.5 .and. mk_n(ipnt) < 0.5) then ! if east
-          delv(ipnt,ilay) = delv(ipnt,ilay) + 1._rw/dl**2 * (-v(ipnt,ilay) + v(c__5,ilay))
-        end if
-      end if
+   !   if (mk_v(ipnt) > 0.5) then !not north or south bdy
+   !     delu(ipnt,ilay) = delu(ipnt,ilay) + 1._rw/dl**2 * (u(c__3,ilay) - 2*u(ipnt,ilay) + u(c__7,ilay))
+   !     delv(ipnt,ilay) = delv(ipnt,ilay) + 1._rw/dl**2 * (v(c__3,ilay) - 2*v(ipnt,ilay) + v(c__7,ilay))
+   !     if (mk_u(ipnt) < 0.5 .and. mk_n(ipnt) > 0.5) then ! if west
+   !       delv(ipnt,ilay) = delv(ipnt,ilay) + 1._rw/dl**2 * (v(c__1,ilay) - v(ipnt,ilay))
+   !     elseif (mk_u(ipnt) < 0.5 .and. mk_n(ipnt) < 0.5) then ! if east
+   !       delv(ipnt,ilay) = delv(ipnt,ilay) + 1._rw/dl**2 * (-v(ipnt,ilay) + v(c__5,ilay))
+   !     end if
+   !   end if
+       if (mk_u(ipnt) > 0.5) then
+         delu(ipnt,ilay) = delu(ipnt,ilay) + 1._rw/dl**2 * &
+           (mk_u(c__1)*u(c__1,ilay)+ mk_u(c__3)*u(c__3,ilay)+ mk_u(c__5)*u(c__5,ilay)+ &
+           mk_u(c__7)*u(c__7,ilay) )
        
+        delu(ipnt,ilay) = delu(ipnt,ilay) - 1._rw/dl**2 * &
+          (mk_u(c__1)+mk_u(c__3)+mk_u(c__5)+mk_u(c__7))*u(ipnt,ilay)  
+       
+       end if
+
+       if (mk_v(ipnt) > 0.5) then 
+         delv(ipnt,ilay) = delv(ipnt,ilay) + 1._rw/dl**2 * &
+           (mk_v(c__1)*v(c__1,ilay)+ mk_v(c__3)*v(c__3,ilay)+ mk_v(c__5)*v(c__5,ilay)+ &
+           mk_v(c__7)*v(c__7,ilay) )
+         delv(ipnt,ilay) = delv(ipnt,ilay) - 1._rw/dl**2 * &
+           (mk_v(c__1)+mk_v(c__3)+mk_v(c__5)+mk_v(c__7))*v(ipnt,ilay)
+
+       end if
+   
      end if
   end do
 
@@ -2553,27 +2571,42 @@ subroutine update_viscosity( ilay )
         VV4(ipnt,ilay)=VV4(ipnt,ilay)+1._rw/dl*hh_q*delu(ipnt,ilay)        &
                   +1._rw/dl*hh_q*delv(ipnt,ilay)
 
-        if (subc(ipnt,1)<=lm) then!if (mk_u(c__1)> 0.5) then
+        if (subc(ipnt,1)<=lm-1) then!not east
+        !if (mk_u(c__1)> 0.5) then
           UU4(ipnt,ilay) = UU4(ipnt,ilay) +  1._rw/dl                      &
                            *hlay(ipnt,ilay)*delu(c__1,ilay)
         end if
-        if (subc(ipnt,2)<=mm) then !if (mk_v(c__3)> 0.5) then
+        if (subc(ipnt,2)<=mm-1) then !not north
+        !if (mk_v(c__3)> 0.5) then
           UU4(ipnt,ilay) = UU4(ipnt,ilay) - 1._rw/dl                       &
                            *hlay(ipnt,ilay)*delv(c__3,ilay)
         end if
-        if (subc(ipnt,1)>1) then !if (mk_v(c__5)> 0.5) then
+        if (subc(ipnt,1)>1) then !not west
+        !if (mk_v(c__5)> 0.5) then
           VV4(ipnt,ilay) = VV4(ipnt,ilay) - 1._rw/dl*hh_q*delv(c__5,ilay)
         end if
-        if (subc(ipnt,2)>1) then !if (mk_u(c__7)> 0.5) then
+        if (subc(ipnt,2)>1) then !not south
+        !if (mk_u(c__7)> 0.5) then
           VV4(ipnt,ilay) = VV4(ipnt,ilay) -  1._rw/dl*hh_q*delu(c__7,ilay)
         end if
     
-        if (subc(ipnt,1)==lm+1 .or. subc(ipnt,1)==1 .or.                   &
-                       subc(ipnt,2)==mm+1 .or. subc(ipnt,2)==1) then
+       ! if (subc(ipnt,1)>=lm+1 .or. subc(ipnt,1)<=2 .or.                   &
+       !                subc(ipnt,2)==mm+2 .or. subc(ipnt,2)==2) then
+       if (mk_u(ipnt)*mk_v(ipnt)<0.5) then !this is effectively mk_vort
           VV4(ipnt,ilay) = 0._rw
         end if 
     end do
   end if
+
+!print *, 'u',u(1:ndeg,2)
+!print *, 'v',v(1:ndeg,2)
+
+!print *, 'delu',  delu(1:ndeg,2)
+!print *, 'delv', delv(1:ndeg,2)
+!print *, 'UU4', UU4(1:ndeg,2)
+!print *, 'VV4', VV4(1:ndeg,2)
+!print *, 'hlay', hlay(1:ndeg,2)
+!read(*,*) 
 
 end subroutine update_viscosity
 
